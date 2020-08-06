@@ -17,7 +17,7 @@ local LrTasks     = import("LrTasks")
 -- Local imports
 
 logger = require("Logger.lua")
-logger.init("FaceLabelling", 3) -- arguments: log filename, log_level threshold (lowest is most significant)
+logger.init("FaceLabelling", 2) -- arguments: log filename, log_level threshold (lowest is most significant)
 
 FaceLabelling = require "FaceLabelling.lua"
 
@@ -44,8 +44,8 @@ function processRenderedPhotos( functionContext, exportContext )
 
     FaceLabelling.start() -- start ExifTool service
     
-    level=1; tableName='exportParams'; compact=true
-    logger.writeTable(level, tableName, exportParams, compact)
+    level=3; tableName='exportParams'; compact=true
+    logger.writeTable(level, tableName, exportParams, compact) -- write to log for debug
     
     path = ''
     if (exportParams.LR_export_destinationType == "desktop" or 
@@ -87,7 +87,7 @@ function processRenderedPhotos( functionContext, exportContext )
 
             success, failures = FaceLabelling.renderPhoto(photo, pathOrMessage)
 
-            logger.writeLog(2, 'Delete file: ' .. pathOrMessage)
+            logger.writeLog(3, 'Delete file: ' .. pathOrMessage)
 
             --if not LrFileUtils.delete( pathOrMessage ) then -- delete temp file
             --    logger.writeLog(0, "Failed to delete file: " .. pathOrMessage)

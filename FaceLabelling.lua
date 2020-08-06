@@ -28,8 +28,9 @@ local exportParams = {} -- should probably pick this up properly from FaceLabell
 -- override of paths until prefs properly integrated into dialogs
 local prefs_override = {}
 prefs_override.exiftoolprog = LrPathUtils.child(_PLUGIN.path, 'ExifTool/exiftool')
---prefs_override.imageMagicApp = "/usr/local/bin/magick"
-prefs_override.imageMagicApp = LrPathUtils.child(_PLUGIN.path, 'ImageMagick/magick2')
+prefs_override.imageMagicApp = "/usr/local/bin/magick"
+--prefs_override.imageMagicApp = LrPathUtils.child(_PLUGIN.path, 'ImageMagick/magick')
+--prefs_override.imageMagicApp = 'magick' -- doesn't work; assume sandbox protection
 
 -------------------------------------------------------------------------------
 
@@ -91,6 +92,7 @@ function FaceLabelling.renderPhoto(photo, pathOrMessage)
     command_string = "-write " .. outputPath
     ImageMagickAPI.add_command_string(exportParams.imageMagickHandle, command_string)
 
+    -- execute ImageMagick commands
     ImageMagickAPI.execute_commands(exportParams.imageMagickHandle)
     
     return success, failures
@@ -117,7 +119,7 @@ function FaceLabelling.stop()
 end
 
 function FaceLabelling.getRegions(photo)
-    logger.writeLog(2, 'Parse photo: ' .. photo:getRawMetadata('path'))
+    logger.writeLog(4, 'Parse photo: ' .. photo:getRawMetadata('path'))
     exifToolHandle = exportParams.exifToolHandle
     local facesLr, photoDimension = ExifToolAPI.getFaceRegionsList(exifToolHandle, photo:getRawMetadata('path'))
     

@@ -30,10 +30,10 @@ local tmpdir = LrPathUtils.getStandardFilePath("temp")
 function ImageMagickAPI.init(prefs)
     local handle = {} -- handle
     handle.app = prefs.imageMagicApp
-    if not LrFileUtils.exists(handle.app) then
-        logger.writeLog(0, "ImageMagic: Cannot find ImageMagic app: " .. handle.app .. " not found")
-        return false
-    end
+    --if not LrFileUtils.exists(handle.app) then
+    --    logger.writeLog(0, "ImageMagic: Cannot find ImageMagic app: " .. handle.app .. " not found")
+    --    return false
+    --end
         
     -- create unique command file
     dateStr = tostring(LrDate.currentTime())
@@ -86,11 +86,11 @@ function ImageMagickAPI.execute_commands(handle)
         success = false
     else
         exe = handle.app
-        if not LrFileUtils.exists(exe) then
-            logger.writeLog(0, "Could not find ImageMagick app:" .. exe)
+        --if not LrFileUtils.exists(exe) then
+        --    logger.writeLog(0, "Could not find ImageMagick app:" .. exe)
         --else
         --    logger.writeLog(3, "Found ImageMagick app:" .. exe)
-        end
+        --end
         if not LrFileUtils.exists(handle.commandFile) then
             logger.writeLog(0, "Could not find ImageMagick command file:" .. handle.commandFile)
         --else

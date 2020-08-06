@@ -169,14 +169,14 @@ function _openExifTool(prefs)
         					cmdlineQuote()
         	local retcode
         	
-        	logger.writeLog(2, string.format("exiftool Listener(%s): starting ...\n", cmdline))
+        	logger.writeLog(3, string.format("exiftool Listener(%s): starting ...\n", cmdline))
         	h.cmdNumber = 0
         	local exitStatus = LrTasks.execute(cmdline)
         	if exitStatus > 0 then
         		logger.writeLog(1, string.format("exiftool Listener(%s): terminated with error %s\n", h.etCommandFile, tostring(exitStatus)))
         		retcode = false
         	else
-        		logger.writeLog(2, string.format("exiftool Listener(%s): terminated.\n", h.etCommandFile))
+        		logger.writeLog(3, string.format("exiftool Listener(%s): terminated.\n", h.etCommandFile))
         		retcode = true
         	end
         
