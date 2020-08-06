@@ -29,60 +29,376 @@ local exportParams = {} -- should probably pick this up properly from FaceLabell
 local prefs_override = {}
 prefs_override.exiftoolprog = LrPathUtils.child(_PLUGIN.path, 'ExifTool/exiftool')
 prefs_override.imageMagicApp = "/usr/local/bin/magick"
+prefs_override.convertApp = "/usr/local/bin/convert"
 --prefs_override.imageMagicApp = LrPathUtils.child(_PLUGIN.path, 'ImageMagick/magick')
 --prefs_override.imageMagicApp = 'magick' -- doesn't work; assume sandbox protection
 
+local label_config = {}
+label_config.font_size = 40 -- initial value
+label_config.font_type = 'Courier' -- initial value
+label_config.font_colour = 'white'
+label_config.font_line_width = 1
+label_config.default_position = 'below'
+label_config.default_align = 'center'
+label_config.default_num_rows = 3
+label_config.format_experiment_list = {'position', 'num_rows', 'revert_to_default_position'}
+label_config.positions_experiment_list = {'below', 'above', 'left', 'right'}
+label_config.num_rows_experiment_list = {1,2,3,4,5}
+
+local photo_config = {}
+photo_config.image_margin = 5 -- initial value
+photo_config.draw_face_outlines = true
+photo_config.draw_label_text = true
+photo_config.draw_label_boxes = true
+photo_config.label_outline_colour = 'red'
+photo_config.label_outline_line_width = 1
+photo_config.face_outline_colour = 'white'
+photo_config.face_outline_line_width = 2
+photo_config.image_width_to_region_ratio_small = 20 -- to determine label text size for small images
+photo_config.image_width_to_region_ratio_large = 5 -- and larger images
+photo_config.label_width_to_region_ratio_small = 2 -- ratio of label width to region width for small regions
+photo_config.label_width_to_region_ratio_large = 0.5 -- and for larger regions
+photo_config.test_label = 'Test Label' -- used to determine label font size
+
 -------------------------------------------------------------------------------
+
+function minragged(text, num_lines)
+    words = {}
+    for word in text:gmatch("%w+") do table.insert(words, word) end
+    num_words = #words
+    num_lines = math.min(num_lines, num_words) -- no more lines than words
+    
+    --level=1; tableName='words'; compact=false
+    --logger.writeTable(level, tableName, words, compact) -- write to log for debug
+
+    cumulative_width = {}
+    cumulative_width[1] = 0
+    for i, word in pairs(words) do
+        table.insert(cumulative_width, cumulative_width[#cumulative_width] + string.len(word))
+    end
+    total_width = cumulative_width[#cumulative_width] + #words - 1 -- len words -1 space
+    line_width = (total_width - (num_lines - 1)) / num_lines -- num_lines-1 line breaks
+    
+    -- cost of a line (words[i] .. words[j-1])
+    -- lua table indexes start at 1 (not 0)
+    function cost(i, j)
+        actual_line_width = math.max(j - i - 1, 0) + cumulative_width[j+1] - cumulative_width[i+1]
+        return (line_width - actual_line_width)^2
+    end
+    
+    best = {}
+    cost_index_list = {}
+    cost_index_pair = {cost = 0, word_index = nil}
+    cost_index_list[1] = cost_index_pair
+    for w = 1, #words do -- initialise array
+        cost_index_pair = {cost = math.huge, word_index = nil}
+        cost_index_list[w+1] = cost_index_pair
+    end
+    table.insert(best, cost_index_list)
+    
+    --level=1; tableName='best'; compact=false
+    --logger.writeTable(level, tableName, best, compact) -- write to log for debug
+
+    for l = 1, num_lines do
+        cost_index_list = {}
+        for j = 0, num_words do
+            min_cost = math.huge -- initial value
+            min_index = 0 -- initial value
+            for k = 0, j do
+                --logger.writeLog(1, string.format("index l,j,k: %d,%d,%d", l,j,k))
+                k_cost = best[l-1+1][k+1].cost + cost(k,j)
+                if k_cost < min_cost then
+                    min_cost = k_cost
+                    min_index = k
+                end
+            end
+            table.insert(cost_index_list, {cost = min_cost, word_index = min_index})
+        end -- for j
+        table.insert(best, cost_index_list)
+    end -- for i
+    
+    lines_reverse_order = {}
+    b = num_words
+    for l = num_lines, 1, -1 do
+        a = best[l+1][b+1].word_index
+        sliced = {}
+        for i=a+1, b do sliced[#sliced+1] = words[i] end
+        line_string = table.concat(sliced, ' ')
+        --logger.writeLog(1, line_string)
+        table.insert(lines_reverse_order, ' ' .. line_string)
+        b = a
+    end
+    lines = {}
+    for l = 1, num_lines do
+        lines[l] = lines_reverse_order[num_lines+1 - l]
+    end
+    
+    --level=1; tableName='lines'; compact=false
+    --logger.writeTable(level, tableName, lines, compact) -- write to log for debug
+
+    --lines_string = ''
+    --for l = num_lines, 1, -1 do
+    lines_string = table.concat(lines, "\n")
+    --end
+    --logger.writeLog(1, lines_string)
+    
+    return lines_string
+end
+
+function get_person(photoDimension, region)
+    local name = ifnil(region.name, 'Unknown')
+    w = math.floor( photoDimension.width * region.w + 0.5)
+    h = math.floor( photoDimension.height * region.h + 0.5)
+    xCentre = photoDimension.width * region.xCentre
+    yCentre = photoDimension.height * region.yCentre
+    x = math.floor( xCentre - w/2 + 0.5)
+    y = math.floor( yCentre - h/2 + 0.5)
+    
+    logger.writeLog(4, string.format("Name '%s', x:%d y:%d, w:%d, h:%d", 
+        name, x, y, w, h))
+    
+    person = {}
+    person.x = x
+    person.y = y
+    person.w = w
+    person.h = h
+    person.name = name
+    
+    return person
+end
+
+function get_people(photoDimension, face_regions)
+    local people = {}
+    if face_regions and #face_regions > 0 then
+        for i, region in pairs(face_regions) do
+            people[i] = get_person(photoDimension, region)
+        end -- for i, region in pairs(face_regions)
+    end -- if face_regions and #face_regions > 0
+    
+    return people
+end
+
+function get_label_position_and_size(label)
+    person = label.person
+    text = minragged(label.text, label.num_rows)
+    
+    label_w, label_h = get_label_size(text, 
+                                      label_config.font_type,
+                                      label.font_size,
+                                      label_config.font_line_width)
+                                      
+    if label.position == 'below' then
+        x = person.x + math.floor(person.w / 2) - math.floor(label_w / 2)
+        y = person.y + person.h -- should probably add some margin
+        align = 'center'
+    elseif label.position == 'above' then
+        x = person.x + math.floor(person.w / 2) - math.floor(label_w / 2)
+        y = person.y - person.h -- should probably add some margin
+        align = 'center'
+    elseif label.position == 'left' then
+        x = person.x - person.w -- should probably add some margin
+        y = person.y + math.floor(person.h / 2) - math.floor(label_h / 2)
+        align = 'right'
+    elseif label.position == 'right' then
+        x = person.x + person.w -- should probably add some margin
+        y = person.y + math.floor(person.h / 2) - math.floor(label_h / 2)
+        align = 'left'
+    else
+        logger.writeLog(0, "Unknown label position: " .. label.position)
+        x, y  = person.x, person.y
+        align = 'center'
+    end
+    
+    return x, y, label_w, label_h, align
+end
+
+function set_label_position(label, position, num_rows, text_align, font_size)
+    label.position = position
+    label.num_rows = num_rows
+    label.text_align = text_align
+    label.font_size = font_size
+    
+    label.x, label.y, label.w, label.h, label.text_align = get_label_position_and_size(label)
+    
+    return label
+end
+
+function get_labels(photoDimension, people)
+    labels = {}
+    if people and #people > 0 then
+        for i, person in pairs(people) do
+            label = {}
+            label.text = person.name
+            label.position_clash = false -- initial value
+            label.person = person
+            logger.writeLog(3, " set_label_position: " .. label.text)
+            label = set_label_position(label, 
+                                       label_config.default_position,
+                                       label_config.default_num_rows,
+                                       label_config.default_align,
+                                       label_config.font_size)
+            labels[i] = label
+        end
+    end
+    return labels
+end
+
+function get_average_region_size(people)
+    local average_size = nil
+    if people and #people > 0 then
+        dimensions_sum = 0
+        for i, person in pairs(people) do
+            dimensions_sum = dimensions_sum + person['w'] + person['h']
+        end
+        average_size = dimensions_sum / (#people*2) -- sum of dimensions / num people * 2 dimensions each (x & y)
+    end
+    return average_size
+end
+
+function get_label_size(text, font, size, line_width)
+    command_string = '-font ' .. font .. 
+                     ' -pointsize ' .. size .. 
+                     ' -strokewidth ' .. line_width .. 
+                     ' label:' .. '"' .. text .. '"' ..
+                     ' -format "%wx%h" info:'
+    success, output = ImageMagickAPI.execute_convert_get_output(exportParams.imageMagickHandle, command_string)
+    if success then
+        w, h = string.match(output, "(%d+)x(%d+)")
+        w = tonumber(w)
+        h = tonumber(h)
+        logger.writeLog(5, "Size: " .. w .. " x " .. h)
+    end
+    return w, h
+end
+
+function determine_label_font_size(photoDimension, people)
+    average_region_size = get_average_region_size(people)
+    font_size = label_config.font_size
+    if average_region_size and average_region_size > 0 then
+        if average_region_size < (photoDimension.width / photo_config.image_width_to_region_ratio_small) then
+            target_width = average_region_size * photo_config.label_width_to_region_ratio_small
+        elseif average_region_size > (photoDimension.width / photo_config.image_width_to_region_ratio_large) then
+            target_width = average_region_size * photo_config.label_width_to_region_ratio_large
+        else
+            target_width = average_region_size
+        end
+        
+        test_label_w, test_label_h = get_label_size(photo_config.test_label, 
+                                                    label_config.font_type,
+                                                    font_size,
+                                                    label_config.font_line_width)
+        if test_label_w < target_width then -- smaller than target
+            while (test_label_w < target_width) do
+                font_size = font_size + 2
+                test_label_w, test_label_h = get_label_size(photo_config.test_label, 
+                                                            label_config.font_type,
+                                                            font_size,
+                                                            label_config.font_line_width)
+            end
+        else -- larger than target
+            while (test_label_w > target_width) do
+                font_size = font_size - 2
+                test_label_w, test_label_h = get_label_size(photo_config.test_label, 
+                                                            label_config.font_type,
+                                                            font_size,
+                                                            label_config.font_line_width)
+            end
+        end
+    end
+
+    return font_size
+end
+
+function translate_align_to_gravity(text_align)
+    if text_align=='left' then
+        gravity = 'west'
+    elseif text_align=='right' then
+        gravity = 'east'
+    elseif text_align=='center' then
+        gravity = 'center'
+    else
+        logger.writeLog(0, "Unknown text align: " .. text_align)
+        gravity = 'center'
+    end
+    
+    return gravity
+end
 
 function FaceLabelling.renderPhoto(photo, pathOrMessage)
     local success = true
     local failures = {}
+    local photoDimensions = {}
+    local people = {}
+    local labels = {}
     
     -- create summary of people from regions 
-    facesLr, photoDimension = FaceLabelling.getRegions(photo)
-    local people = {}
-    if facesLr and #facesLr > 0 then
-        for i, regionFaces in pairs(facesLr) do
-            local name = ifnil(regionFaces.name, 'Unknown')
-            w = math.floor( photoDimension.width * regionFaces.w + 0.5)
-            h = math.floor( photoDimension.height * regionFaces.h + 0.5)
-            xCentre = photoDimension.width * regionFaces.xCentre
-            yCentre = photoDimension.height * regionFaces.yCentre
-            x = math.floor( xCentre - w/2 + 0.5)
-            y = math.floor( yCentre - h/2 + 0.5)
-            
-            logger.writeLog(4, string.format("%d: Name '%s', x:%d y:%d, w:%d, h:%d", 
-                i, name, x, y, w, h))
-            --local cropDimensions = string.format("%dx%d+%d+%d", w, h, x, y)
-            
-            person = {}
-            person.x = x
-            person.y = y
-            person.w = w
-            person.h = h
-            person.name = name
-            
-            people[i] = person
-
-        end -- for i, regionFaces in pairs(facesLr)
-    end -- if facesLr and #facesLr > 0
-
+    face_regions, photoDimension = FaceLabelling.getRegions(photo)
+    people = get_people(photoDimension, face_regions)
+    
+    label_config.font_size = determine_label_font_size(photoDimension, people)
+    logger.writeLog(3, "determine_label_font_size: " .. label_config.font_size)
+    
     -- create labels
-    local labels = {}
-    -- TODO
-
+    labels = get_labels(photoDimension, people)
+    
     -- input file
     exported_file = path_quote_selection_for_platform(pathOrMessage)
     ImageMagickAPI.add_command_string(exportParams.imageMagickHandle, exported_file)
 
-    command_string = '# Person face outlines'
-    ImageMagickAPI.add_command_string(exportParams.imageMagickHandle, command_string)
-    command_string = '-strokewidth 10 -stroke white -fill "rgba( 255, 255, 255, 0.0)"'
-    ImageMagickAPI.add_command_string(exportParams.imageMagickHandle, command_string)
-    for i, person in pairs(people) do -- is this robust for zero length?
-        command_string = string.format('-draw "rectangle %d,%d %d,%d"',
-                person['x'], person['y'], person['x']+person['w'], person['y']+person['h'])
+    -- person face outlines
+    if photo_config.draw_face_outlines then
+        command_string = '# Person face outlines'
         ImageMagickAPI.add_command_string(exportParams.imageMagickHandle, command_string)
+        command_string = string.format('-strokewidth %d -stroke %s -fill "rgba( 255, 255, 255, 0.0)"',
+                                        photo_config.face_outline_line_width,
+                                        photo_config.face_outline_colour)
+        ImageMagickAPI.add_command_string(exportParams.imageMagickHandle, command_string)
+        for i, person in pairs(people) do -- is this robust for zero length?
+            command_string = string.format('-draw "rectangle %d,%d %d,%d"',
+                    person['x'], person['y'], person['x']+person['w'], person['y']+person['h'])
+            ImageMagickAPI.add_command_string(exportParams.imageMagickHandle, command_string)
+        end
+    end
+    
+    -- label boxes
+    if photo_config.draw_label_boxes then
+        command_string = '# Label box outlines'
+        ImageMagickAPI.add_command_string(exportParams.imageMagickHandle, command_string)
+        command_string = string.format('-strokewidth %d -stroke %s -fill "rgba( 255, 255, 255, 0.0)"',
+                                        photo_config.label_outline_line_width,
+                                        photo_config.label_outline_colour)
+        ImageMagickAPI.add_command_string(exportParams.imageMagickHandle, command_string)
+        for i, label in pairs(labels) do -- is this robust for zero length?
+            command_string = string.format('-draw "rectangle %d,%d %d,%d"',
+                    label['x'], label['y'], label['x']+label['w'], label['y']+label['h'])
+            ImageMagickAPI.add_command_string(exportParams.imageMagickHandle, command_string)
+        end
+    end
+    
+    -- label text
+    if photo_config.draw_label_text then
+        command_string = '# Face labels'
+        ImageMagickAPI.add_command_string(exportParams.imageMagickHandle, command_string)
+        for i, label in pairs(labels) do -- is this robust for zero length?
+            logger.writeLog(3, "Face label: " .. label.text)
+            command_string = string.format('-font %s -pointsize %d -stroke %s -strokewidth %d -fill white -undercolor "#00000080"',
+                                           label_config.font_type,
+                                           label.font_size, 
+                                           label_config.font_colour,
+                                           label_config.font_line_width)
+            ImageMagickAPI.add_command_string(exportParams.imageMagickHandle, command_string)
+            --text = label.text
+            text = minragged(label.text, label.num_rows)
+            gravity = translate_align_to_gravity(label.text_align)
+            --command_string = string.format('-background none -size %dx%d -gravity %s caption:"%s"',
+            --                               label.w, label.h, gravity, text)
+            command_string = string.format('-background none -size %dx -gravity %s caption:"%s"',
+                                           label.w, gravity, text)
+            ImageMagickAPI.add_command_string(exportParams.imageMagickHandle, command_string)
+            command_string = string.format('-gravity NorthWest -geometry +%d+%d -composite',
+                                           label.x, label.y)
+            ImageMagickAPI.add_command_string(exportParams.imageMagickHandle, command_string)
+        end
     end
     
     -- output file
@@ -94,6 +410,13 @@ function FaceLabelling.renderPhoto(photo, pathOrMessage)
 
     -- execute ImageMagick commands
     ImageMagickAPI.execute_commands(exportParams.imageMagickHandle)
+    
+    --[[
+    text = 'Just testing to see how this works.'
+    num_lines = 3
+    wrapped_text = minragged(text, num_lines)
+    logger.writeLog(2, wrapped_text)
+    ]]
     
     return success, failures
 end
@@ -115,7 +438,7 @@ function FaceLabelling.stop()
     logger.writeLog(4, "FaceLabelling.stop")
     ExifToolAPI.closeSession(exportParams.exifToolHandle)
     
-    success = ImageMagickAPI.cleanup(exportParams.imageMagickHandle)
+    success = ImageMagickAPI.cleanup(exportParams.imageMagickHandle, true)
 end
 
 function FaceLabelling.getRegions(photo)

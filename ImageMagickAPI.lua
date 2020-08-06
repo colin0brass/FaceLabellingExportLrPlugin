@@ -30,6 +30,7 @@ local tmpdir = LrPathUtils.getStandardFilePath("temp")
 function ImageMagickAPI.init(prefs)
     local handle = {} -- handle
     handle.app = prefs.imageMagicApp
+    handle.convert_app = prefs.convertApp
     --if not LrFileUtils.exists(handle.app) then
     --    logger.writeLog(0, "ImageMagic: Cannot find ImageMagic app: " .. handle.app .. " not found")
     --    return false
@@ -46,12 +47,14 @@ function ImageMagickAPI.init(prefs)
     return handle
 end
 
-function ImageMagickAPI.cleanup(handle)
+function ImageMagickAPI.cleanup(handle, leave_command_file)
     success = true
     if handle then
         logger.writeLog(4, "ImageMagic: cleaning-up after use")
-        if LrFileUtils.exists(handle.commandFile) then
-            LrFileUtils.delete(handle.commandFile)
+        if not leave_command_file then
+            if LrFileUtils.exists(handle.commandFile) then
+                LrFileUtils.delete(handle.commandFile)
+            end
         end
     end
     
@@ -80,21 +83,14 @@ function ImageMagickAPI.add_command_string(handle, command_string)
     return success
 end
 
-function ImageMagickAPI.execute_commands(handle)
+function ImageMagickAPI.execute_commands(handle, leave_command_file)
     success = true
     if not handle then
         success = false
     else
         exe = handle.app
-        --if not LrFileUtils.exists(exe) then
-        --    logger.writeLog(0, "Could not find ImageMagick app:" .. exe)
-        --else
-        --    logger.writeLog(3, "Found ImageMagick app:" .. exe)
-        --end
         if not LrFileUtils.exists(handle.commandFile) then
             logger.writeLog(0, "Could not find ImageMagick command file:" .. handle.commandFile)
-        --else
-        --    logger.writeLog(3, "Found ImageMagick command file:" .. handle.commandFile)
         end
         
         command_line = exe .. " -script " .. path_quote_selection_for_platform(handle.commandFile)
@@ -105,12 +101,38 @@ function ImageMagickAPI.execute_commands(handle)
         end
         
         -- clean-up command file
-        local cmdFile = io.open(handle.commandFile, "w")
-        io.close (cmdFile)
+        if not leave_command_file then
+            local cmdFile = io.open(handle.commandFile, "w")
+            io.close (cmdFile)
+        end
 
     end
 
     return success
+end
+
+function ImageMagickAPI.execute_convert_get_output(handle, command_string)
+    success = true
+    output = ""
+    if not handle then
+        success = false
+    else
+        exe = handle.convert_app
+
+        command_line = exe .. " " .. command_string
+        logger.writeLog(3, "ImageMagick execute command: " .. command_line)
+
+        exitStatus, output, errOutput = safeExecute(command_line, true)
+        if exitStatus then
+            logger.writeLog(3, "ImageMagick output: " .. output)
+        else
+            success = false
+            logger.writeLog(0, "ImageMagick safeExecute failed: " .. errOutput)
+        end
+        
+    end
+
+    return success, output
 end
 
 return ImageMagickAPI
