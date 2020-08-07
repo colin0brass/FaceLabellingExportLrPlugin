@@ -20,6 +20,16 @@ local tmpdir = LrPathUtils.getStandardFilePath("temp")
 
 -------------------------------------------------------------------------------
 
+function list_reverse(list)
+    reversed = {}
+    if list and #list > 0 then
+        for i = 1, #list do
+            reversed[i] = list[#list - i + 1]
+        end
+    end
+    return reversed
+end
+
 function ifnil(str, subst)
 	return ((str == nil) and subst) or str
 end 

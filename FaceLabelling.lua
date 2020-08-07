@@ -33,34 +33,44 @@ prefs_override.convertApp = "/usr/local/bin/convert"
 --prefs_override.imageMagicApp = LrPathUtils.child(_PLUGIN.path, 'ImageMagick/magick')
 --prefs_override.imageMagicApp = 'magick' -- doesn't work; assume sandbox protection
 
+-- initialised later in init function
 local label_config = {}
-label_config.font_size = 40 -- initial value
-label_config.font_type = 'Courier' -- initial value
-label_config.font_colour = 'white'
-label_config.font_line_width = 1
-label_config.default_position = 'below'
-label_config.default_align = 'center'
-label_config.default_num_rows = 3
-label_config.format_experiment_list = {'position', 'num_rows', 'revert_to_default_position'}
-label_config.positions_experiment_list = {'below', 'above', 'left', 'right'}
-label_config.num_rows_experiment_list = {1,2,3,4,5}
-
 local photo_config = {}
-photo_config.image_margin = 5 -- initial value
-photo_config.draw_face_outlines = true
-photo_config.draw_label_text = true
-photo_config.draw_label_boxes = true
-photo_config.label_outline_colour = 'red'
-photo_config.label_outline_line_width = 1
-photo_config.face_outline_colour = 'white'
-photo_config.face_outline_line_width = 2
-photo_config.image_width_to_region_ratio_small = 20 -- to determine label text size for small images
-photo_config.image_width_to_region_ratio_large = 5 -- and larger images
-photo_config.label_width_to_region_ratio_small = 2 -- ratio of label width to region width for small regions
-photo_config.label_width_to_region_ratio_large = 0.5 -- and for larger regions
-photo_config.test_label = 'Test Label' -- used to determine label font size
+local labelling_context = {}
 
 -------------------------------------------------------------------------------
+
+function init()
+    labelling_context = {}
+    labelling_context.people = nil
+    labelling_context.labels = nil
+    labelling_context.photo_dimensions = nil
+    
+    label_config.font_size = 40 -- initial value
+    label_config.font_type = 'Courier' -- initial value
+    label_config.font_colour = 'white'
+    label_config.font_line_width = 1
+    label_config.default_position = 'below'
+    label_config.default_align = 'center'
+    label_config.default_num_rows = 3
+    label_config.format_experiment_list = {'position', 'num_rows', 'revert_to_default_position'}
+    label_config.positions_experiment_list = {'below', 'above', 'left', 'right'}
+    label_config.num_rows_experiment_list = {1,2,3,4,5}
+    
+    photo_config.image_margin = 5 -- initial value
+    photo_config.draw_face_outlines = false
+    photo_config.draw_label_text = true
+    photo_config.draw_label_boxes = false
+    photo_config.label_outline_colour = 'red'
+    photo_config.label_outline_line_width = 1
+    photo_config.face_outline_colour = 'white'
+    photo_config.face_outline_line_width = 2
+    photo_config.image_width_to_region_ratio_small = 20 -- to determine label text size for small images
+    photo_config.image_width_to_region_ratio_large = 5 -- and larger images
+    photo_config.label_width_to_region_ratio_small = 2 -- ratio of label width to region width for small regions
+    photo_config.label_width_to_region_ratio_large = 0.5 -- and for larger regions
+    photo_config.test_label = 'Test Label' -- used to determine label font size
+end
 
 function minragged(text, num_lines)
     words = {}
@@ -128,10 +138,11 @@ function minragged(text, num_lines)
         table.insert(lines_reverse_order, ' ' .. line_string)
         b = a
     end
-    lines = {}
-    for l = 1, num_lines do
-        lines[l] = lines_reverse_order[num_lines+1 - l]
-    end
+    --lines = {}
+    --for l = 1, num_lines do
+    --    lines[l] = lines_reverse_order[num_lines+1 - l]
+    --end
+    lines = list_reverse(lines_reverse_order)
     
     --level=1; tableName='lines'; compact=false
     --logger.writeTable(level, tableName, lines, compact) -- write to log for debug
@@ -178,6 +189,26 @@ function get_people(photoDimension, face_regions)
     return people
 end
 
+function keep_within_image(x, y, w, h)
+    photoDimension = labelling_context.photo_dimensions
+    
+    if x < photo_config.image_margin then -- ensure not negative
+        x = photo_config.image_margin
+    end
+    if y < photo_config.image_margin then
+        y = photo_config.image_margin
+    end
+    
+    if (x + w) > (photoDimension.width - photo_config.image_margin) then -- ensure not exceeding image dimensions
+        x = self.image_width - photo_config.image_margin - w
+    end
+    if (y + h) > (photoDimension.height - photo_config.image_margin) then
+        y = self.image_height - photo_config.image_margin - h
+    end
+    
+    return x,y
+end
+
 function get_label_position_and_size(label)
     person = label.person
     text = minragged(label.text, label.num_rows)
@@ -193,7 +224,7 @@ function get_label_position_and_size(label)
         align = 'center'
     elseif label.position == 'above' then
         x = person.x + math.floor(person.w / 2) - math.floor(label_w / 2)
-        y = person.y - person.h -- should probably add some margin
+        y = person.y - label.h -- should probably add some margin
         align = 'center'
     elseif label.position == 'left' then
         x = person.x - person.w -- should probably add some margin
@@ -209,22 +240,25 @@ function get_label_position_and_size(label)
         align = 'center'
     end
     
+    x, y = keep_within_image(x, y, label_w, label_h)
+    
     return x, y, label_w, label_h, align
 end
 
 function set_label_position(label, position, num_rows, text_align, font_size)
-    label.position = position
-    label.num_rows = num_rows
-    label.text_align = text_align
-    label.font_size = font_size
+    if position then label.position = position end
+    if num_rows then label.num_rows = num_rows end
+    if text_align then label.text_align = text_align end
+    if font_size then label.font_size = font_size end
     
     label.x, label.y, label.w, label.h, label.text_align = get_label_position_and_size(label)
     
     return label
 end
 
-function get_labels(photoDimension, people)
+function get_labels()
     labels = {}
+    people = labelling_context.people
     if people and #people > 0 then
         for i, person in pairs(people) do
             label = {}
@@ -239,6 +273,8 @@ function get_labels(photoDimension, people)
                                        label_config.font_size)
             labels[i] = label
         end
+    else
+        logger.writeLog(0, "get_labels: no people found")
     end
     return labels
 end
@@ -271,7 +307,10 @@ function get_label_size(text, font, size, line_width)
     return w, h
 end
 
-function determine_label_font_size(photoDimension, people)
+function determine_label_font_size()
+    people = labelling_context.people
+    photoDimension = labelling_context.photo_dimensions
+    
     average_region_size = get_average_region_size(people)
     font_size = label_config.font_size
     if average_region_size and average_region_size > 0 then
@@ -324,6 +363,125 @@ function translate_align_to_gravity(text_align)
     return gravity
 end
 
+function check_clash(x1, y1, w1, h1,  x2, y2, w2, h2)
+    non_overlapping = ((x1+w1)<=x2) or (x1>=(x2+w2)) or ((y1+h1)<=y2) or (y1>=(y2+h2))
+    return not non_overlapping
+end
+
+function check_label_clash(label)
+    overall_clash = false
+    
+    -- check for clash with other labels
+    labels = labelling_context.labels
+    for i, other in pairs(labels) do
+        if other ~= label then -- skip comparing self
+            clash = check_clash(label.x, label.y, label.w, label.h,
+                                other.x, other.y, other.w, other.h)
+            if clash then
+                overall_clash = true
+                logger.writeLog(3, " - label " .. label.text .. " clash with label:" .. other.text)
+            end
+        end
+    end
+    
+    -- check for clash with face outlines
+    people = labelling_context.people
+    for i, person in pairs(people) do
+        clash = check_clash(label.x, label.y, label.w, label.h,
+                                person.x, person.y, person.w, person.h)
+        if clash then
+            overall_clash = true
+            logger.writeLog(3, " - label " .. label.text .. " clash with person:" .. person.name)
+        end
+    end
+    
+    return overall_clash
+end
+
+function check_for_label_position_clashes()
+    labels = labelling_context.labels
+    for i, label in pairs(labels) do -- is this robust for zero length?
+        clash = check_label_clash(label)
+        label.position_clash = clash
+    end
+end
+
+function optimise_single_label(label, experiment_list)
+    local clash = label.position_clash
+    if #experiment_list>0 and clash then
+        local experiment = table.remove(experiment_list)
+        --logger.writeLog(3, "optimise_single_label - experiment: " .. experiment)
+        
+        if experiment == 'num_rows' then options_list = label_config.num_rows_experiment_list
+        elseif experiment == 'position' then options_list = label_config.positions_experiment_list
+        elseif experiment == 'revert_to_default_position' then options_list = {label_config.default_position}
+        else
+            logger.writeLog(0, "optimise_single_label - unknown experiment type: " .. experiment)
+        end
+        
+        for i, option in pairs(options_list) do
+            if #experiment_list then -- iterating - depth-first
+                clash = optimise_single_label(label, experiment_list)
+            end
+            
+            clash = label.position_clash
+            if clash then -- still a clash from depth-first experiment, so work to do ...
+                logger.writeLog(4, "- Experiment trying:" .. experiment .. " option: " .. option)
+                try_position = nil
+                try_num_rows = nil -- initial value
+                if experiment == 'num_rows' then try_num_rows = option
+                elseif experiment == 'position' then try_position = option
+                elseif experiment == 'revert_to_default_position' then
+                    try_position = label_config.default_position
+                    try_num_rows = label_config.default_num_rows
+                else
+                    logger.writeLog(0, "optimise_single_label - unknown experiment type: " .. experiment)
+                end
+                
+                label = set_label_position(label, 
+                                           try_position,
+                                           try_num_rows,
+                                           nil,
+                                           nil)
+                clash = check_label_clash(label)
+                label.position_clash = clash
+                if not clash then
+                    logger.writeLog(4, "- Successful experiment: " .. label.position .. ", rows=" .. label.num_rows)
+                    break -- stop optimising when found a working configuration
+                end
+            end -- if clash
+        end -- for i, option in pairs(options_list)
+        
+    end -- if #experiment_list>0 and clash
+    
+    return clash
+end
+
+function optimise_labels(attempt_number)
+    local labels = labelling_context.labels
+    local num_optimisations = 2
+    local experiment_list = label_config.format_experiment_list
+    if not attempt_number then attempt_number = 1 end
+    
+    if attempt_number == 2 then -- on second attempt, reverse the order
+        list = list_reverse(list)
+    end
+    
+    overall_clash = false -- initial value
+    for i, label in pairs(labels) do
+        if label.position_clash then
+            if attempt_number <= num_optimisations then
+                clash = optimise_single_label(label, experiment_list)
+                if clash then overall_clash = true end
+            end
+        end
+    end
+    
+    if clash and (attempt_number < num_optimisations) then
+        optimise_labels(attempt_number+1)
+    end
+end
+
 function FaceLabelling.renderPhoto(photo, pathOrMessage)
     local success = true
     local failures = {}
@@ -331,15 +489,25 @@ function FaceLabelling.renderPhoto(photo, pathOrMessage)
     local people = {}
     local labels = {}
     
+    -- initialise context for new photo
+    init()
+    
     -- create summary of people from regions 
     face_regions, photoDimension = FaceLabelling.getRegions(photo)
     people = get_people(photoDimension, face_regions)
+    labelling_context.people = people
+    labelling_context.photo_dimensions = photoDimension
     
-    label_config.font_size = determine_label_font_size(photoDimension, people)
+    label_config.font_size = determine_label_font_size()
     logger.writeLog(3, "determine_label_font_size: " .. label_config.font_size)
-    
+                                                                                         
     -- create labels
-    labels = get_labels(photoDimension, people)
+    labels = get_labels()
+    labelling_context.labels = labels
+    
+    -- check and optimise positions
+    check_for_label_position_clashes()
+    optimise_labels()
     
     -- input file
     exported_file = path_quote_selection_for_platform(pathOrMessage)
