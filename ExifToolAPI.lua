@@ -55,20 +55,20 @@ function ExifToolAPI.getFaceRegionsList(h, photoFilename)
 	if not _sendCmd(h, "-struct -j -ImageWidth -ImageHeight -Orientation -HasCrop -CropTop -CropLeft -CropBottom -CropRight -CropAngle -XMP-mwg-rs:RegionInfo")
 	or not _sendCmd(h, photoFilename, noWhitespaceConversion)
 	then
-		logger.writeLog(3, string.format("ExifToolAPI.getFaceRegionsList for %s failed: could not read XMP data\n",
+		logger.writeLog(2, string.format("ExifToolAPI.getFaceRegionsList for %s failed: could not read XMP data\n",
 							photoFilename))
 		return nil
 	end  
 
 	local queryResults = _executeCmds(h) 
 	if not queryResults then
-		logger.writeLog(3, "ExifToolAPI.getFaceRegionsList: execute query failed\n")
+		logger.writeLog(2, "ExifToolAPI.getFaceRegionsList: execute query failed\n")
 		return nil
 	end
 	
 	local results = JSON:decode(queryResults, "ExifToolAPI.getFaceRegionsList(" .. photoFilename .. ")")
 	if not results or #results < 1 then
-		logger.writeLog(3, "ExifToolAPI.getFaceRegionsList: JSON decode of results failed\n")
+		logger.writeLog(2, "ExifToolAPI.getFaceRegionsList: JSON decode of results failed\n")
 		return nil
 	end
 	
@@ -120,7 +120,7 @@ function ExifToolAPI.getFaceRegionsList(h, photoFilename)
 				
 				personTags[j] = personTag 
 				
-				logger.writeLog(3, string.format("ExifToolAPI.getFaceRegionsList: Area '%s' --> x:%f y:%f, w:%f, h:%f, rot:%f, trot:%f\n", 
+				logger.writeLog(4, string.format("ExifToolAPI.getFaceRegionsList: Area '%s' --> x:%f y:%f, w:%f, h:%f, rot:%f, trot:%f\n", 
 												personTags[j].name,
 												personTags[j].xCentre,
 												personTags[j].yCentre,
@@ -247,7 +247,7 @@ function _executeCmds(h)
 		end
 		now = LrDate.currentTime()
 	end
-	logger.writeLog(3, string.format("_executeCmds(%s, cmd %d) took %d secs, got:\n%s\n", h.etLogFile, h.cmdNumber, now - startTime, ifnil(cmdResult, '<Nil>', cmdResult)))
+	logger.writeLog(5, string.format("_executeCmds(%s, cmd %d) took %d secs, got:\n%s\n", h.etLogFile, h.cmdNumber, now - startTime, ifnil(cmdResult, '<Nil>', cmdResult)))
 	return cmdResult 
 end
 

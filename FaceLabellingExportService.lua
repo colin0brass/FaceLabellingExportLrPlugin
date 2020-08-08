@@ -44,8 +44,7 @@ function processRenderedPhotos( functionContext, exportContext )
 
     FaceLabelling.start() -- start ExifTool service
     
-    level=3; tableName='exportParams'; compact=true
-    logger.writeTable(level, tableName, exportParams, compact) -- write to log for debug
+    logger.writeTable(3, 'exportParams', exportParams, true) -- write to log for debug
     
     path = ''
     if (exportParams.LR_export_destinationType == "desktop" or 

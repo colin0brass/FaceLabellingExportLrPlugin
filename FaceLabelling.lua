@@ -200,10 +200,10 @@ function keep_within_image(x, y, w, h)
     end
     
     if (x + w) > (photoDimension.width - photo_config.image_margin) then -- ensure not exceeding image dimensions
-        x = self.image_width - photo_config.image_margin - w
+        x = photoDimension.width - photo_config.image_margin - w
     end
     if (y + h) > (photoDimension.height - photo_config.image_margin) then
-        y = self.image_height - photo_config.image_margin - h
+        y = photoDimension.height - photo_config.image_margin - h
     end
     
     return x,y
@@ -265,7 +265,7 @@ function get_labels()
             label.text = person.name
             label.position_clash = false -- initial value
             label.person = person
-            logger.writeLog(3, " set_label_position: " .. label.text)
+            logger.writeLog(3, "- set_label_position: " .. label.text)
             label = set_label_position(label, 
                                        label_config.default_position,
                                        label_config.default_num_rows,
@@ -379,7 +379,7 @@ function check_label_clash(label)
                                 other.x, other.y, other.w, other.h)
             if clash then
                 overall_clash = true
-                logger.writeLog(3, " - label " .. label.text .. " clash with label:" .. other.text)
+                logger.writeLog(3, "- label " .. label.text .. " clash with label:" .. other.text)
             end
         end
     end
@@ -391,7 +391,7 @@ function check_label_clash(label)
                                 person.x, person.y, person.w, person.h)
         if clash then
             overall_clash = true
-            logger.writeLog(3, " - label " .. label.text .. " clash with person:" .. person.name)
+            logger.writeLog(3, "- label " .. label.text .. " clash with person:" .. person.name)
         end
     end
     
@@ -407,10 +407,11 @@ function check_for_label_position_clashes()
 end
 
 function optimise_single_label(label, experiment_list)
-    local clash = label.position_clash
-    if #experiment_list>0 and clash then
-        local experiment = table.remove(experiment_list)
-        --logger.writeLog(3, "optimise_single_label - experiment: " .. experiment)
+    local local_experiment_list = table_copy(experiment_list)
+    local clash = true -- initial value
+    if local_experiment_list and #local_experiment_list>0 then
+        local experiment = table.remove(local_experiment_list)
+        logger.writeLog(4, "- optimise_single_label - experiment: " .. experiment)
         
         if experiment == 'num_rows' then options_list = label_config.num_rows_experiment_list
         elseif experiment == 'position' then options_list = label_config.positions_experiment_list
@@ -420,13 +421,13 @@ function optimise_single_label(label, experiment_list)
         end
         
         for i, option in pairs(options_list) do
-            if #experiment_list then -- iterating - depth-first
-                clash = optimise_single_label(label, experiment_list)
+            if local_experiment_list and #local_experiment_list>0 then -- iterating - depth-first
+                clash = optimise_single_label(label, local_experiment_list)
             end
             
             clash = label.position_clash
             if clash then -- still a clash from depth-first experiment, so work to do ...
-                logger.writeLog(4, "- Experiment trying:" .. experiment .. " option: " .. option)
+                logger.writeLog(4, "- - experiment trying:" .. experiment .. " option: " .. option)
                 try_position = nil
                 try_num_rows = nil -- initial value
                 if experiment == 'num_rows' then try_num_rows = option
@@ -446,13 +447,13 @@ function optimise_single_label(label, experiment_list)
                 clash = check_label_clash(label)
                 label.position_clash = clash
                 if not clash then
-                    logger.writeLog(4, "- Successful experiment: " .. label.position .. ", rows=" .. label.num_rows)
+                    logger.writeLog(4, "- - successful experiment: " .. label.position .. ", rows=" .. label.num_rows)
                     break -- stop optimising when found a working configuration
                 end
             end -- if clash
         end -- for i, option in pairs(options_list)
         
-    end -- if #experiment_list>0 and clash
+    end -- if local_experiment_list and #local_experiment_list>0
     
     return clash
 end
@@ -470,6 +471,8 @@ function optimise_labels(attempt_number)
     overall_clash = false -- initial value
     for i, label in pairs(labels) do
         if label.position_clash then
+            logger.writeLog(4, "= Optimising label position: " .. label.text)
+            logger.writeTable(4, 'experiment_list', experiment_list, true)
             if attempt_number <= num_optimisations then
                 clash = optimise_single_label(label, experiment_list)
                 if clash then overall_clash = true end
@@ -477,7 +480,7 @@ function optimise_labels(attempt_number)
         end
     end
     
-    if clash and (attempt_number < num_optimisations) then
+    if overall_clash and (attempt_number < num_optimisations) then
         optimise_labels(attempt_number+1)
     end
 end
@@ -499,16 +502,20 @@ function FaceLabelling.renderPhoto(photo, pathOrMessage)
     labelling_context.photo_dimensions = photoDimension
     
     label_config.font_size = determine_label_font_size()
-    logger.writeLog(3, "determine_label_font_size: " .. label_config.font_size)
+    logger.writeLog(3, "Chosen font size: " .. label_config.font_size)
                                                                                          
     -- create labels
+    logger.writeLog(3, "Create labels")
     labels = get_labels()
     labelling_context.labels = labels
     
     -- check and optimise positions
+    logger.writeLog(3, "Check and optimise positions")
     check_for_label_position_clashes()
     optimise_labels()
     
+    logger.writeLog(3, "Create ImageMagick script command file for image labelling")
+
     -- input file
     exported_file = path_quote_selection_for_platform(pathOrMessage)
     ImageMagickAPI.add_command_string(exportParams.imageMagickHandle, exported_file)

@@ -32,7 +32,7 @@ end
 	
 function logger.writeLog(level, message)
 	if level <= log_level_threshold then
-		myLogger:trace(message)
+		myLogger:trace(level .. " : " .. message)
 	end
 end
 
@@ -50,87 +50,89 @@ function getAttrValueOutputString(key, value, pwKeyPattern, hideKeyPattern)
 end
 
 function logger.writeTable(level, tableName, printTable, compact, pwKeyPattern, hideKeyPattern, isObservableTable)
-	if level > ifnil(loglevel, 2) then return end
+	if level <= log_level_threshold then
 	
-	local tableCompactOutputLine = {}
+        local tableCompactOutputLine = {}
+        
+        if type(printTable) ~= 'table' then
+            logger.writeLog(level, tableName .. ' is not a table, but ' .. type(printTable) .. '\n')
+            return
+        end
+        
+        -- the pairs() iterator is different for observable tables
+        local pairs_r1, pairs_r2, pairs_r3
+        if isObservableTable then
+            pairs_r1, pairs_r2, pairs_r3 = printTable:pairs()
+        else
+            pairs_r1, pairs_r2, pairs_r3 = pairs(printTable)
+        end
+        
+        if not compact then logger.writeLog(level, '"' .. tableName .. '":{\n') end
+    --	for key, value in pairs( printTable ) do
+        for key, value in pairs_r1, pairs_r2, pairs_r3 do
+            if type(key) == 'table' then
+                local outputLine = {}
+                if not compact then
+                    logger.writeLog(level, '\t<table>' .. ':{' ..  iif(compact, ' ', '\n'))
+                end
+                for key2, value2 in pairs( key ) do
+                    local attrValueString = getAttrValueOutputString(key2, value2, pwKeyPattern, hideKeyPattern)
+                    
+                    if compact then
+                        table.insert(outputLine, attrValueString)
+                    else	
+                        logger.writeLog(level, '\t\t' .. attrValueString .. '\n')
+                    end
+                end
+                if attrValueString then
+                    if compact then
+                        table.sort(outputLine)
+                        table.insert(tableCompactOutputLine, '\n\t\t<table> : {' .. table.concat(outputLine, ', ') .. '}')
+                    else				
+                        logger.writeLog(level, '\t}\n')
+                    end
+                end
+            elseif type(value) == 'table' and not (hideKeyPattern and string.match(key, hideKeyPattern)) then
+                local outputLine = {}
+                if not compact then
+                    logger.writeLog(level, '\t"' .. key .. '":{' ..  iif(compact, ' ', '\n'))
+                end
+                for key2, value2 in pairs( value ) do
+                    local attrValueString = getAttrValueOutputString(key2, value2, pwKeyPattern, hideKeyPattern)
+                    if attrValueString then
+                        if compact then
+                            table.insert(outputLine, attrValueString)
+                        else	
+                             logger.writeLog(level, '\t\t' .. attrValueString .. '\n') 
+                        end
+                    end
+                end
+                if compact then
+                    table.sort(outputLine)
+                    table.insert(tableCompactOutputLine, '\n\t\t"' .. key .. '":{' .. table.concat(outputLine, ', ') .. '}')
+                else				
+                    logger.writeLog(level, '\t}\n')
+                end
+            else
+                local attrValueString = getAttrValueOutputString(key, value, pwKeyPattern, hideKeyPattern)
+                if attrValueString then
+                    if compact then 
+                        table.insert(tableCompactOutputLine, attrValueString)
+                    else
+                        logger.writeLog(level, '	' .. attrValueString .. '\n')
+                    end
+                end
+            end
+        end
+    
+        if compact then
+            table.sort(tableCompactOutputLine)
+            logger.writeLog(level, '"' .. tableName .. '":{' .. table.concat(tableCompactOutputLine, ', ') .. '\n\t}\n')
+        else
+            logger.writeLog(level, '}\n')
+        end
 	
-	if type(printTable) ~= 'table' then
-		logger.writeLog(level, tableName .. ' is not a table, but ' .. type(printTable) .. '\n')
-		return
-	end
-	
-	-- the pairs() iterator is different for observable tables
-	local pairs_r1, pairs_r2, pairs_r3
-	if isObservableTable then
-		pairs_r1, pairs_r2, pairs_r3 = printTable:pairs()
-	else
-		pairs_r1, pairs_r2, pairs_r3 = pairs(printTable)
-	end
-	
-	if not compact then logger.writeLog(level, '"' .. tableName .. '":{\n') end
---	for key, value in pairs( printTable ) do
-	for key, value in pairs_r1, pairs_r2, pairs_r3 do
-		if type(key) == 'table' then
-			local outputLine = {}
-			if not compact then
-				logger.writeLog(level, '\t<table>' .. ':{' ..  iif(compact, ' ', '\n'))
-			end
-			for key2, value2 in pairs( key ) do
-				local attrValueString = getAttrValueOutputString(key2, value2, pwKeyPattern, hideKeyPattern)
-				
-				if compact then
-					table.insert(outputLine, attrValueString)
-				else	
-					logger.writeLog(level, '\t\t' .. attrValueString .. '\n')
-				end
-			end
-			if attrValueString then
-				if compact then
-					table.sort(outputLine)
-					table.insert(tableCompactOutputLine, '\n\t\t<table> : {' .. table.concat(outputLine, ', ') .. '}')
-				else				
-					logger.writeLog(level, '\t}\n')
-				end
-			end
-		elseif type(value) == 'table' and not (hideKeyPattern and string.match(key, hideKeyPattern)) then
-			local outputLine = {}
-			if not compact then
-				logger.writeLog(level, '\t"' .. key .. '":{' ..  iif(compact, ' ', '\n'))
-			end
-			for key2, value2 in pairs( value ) do
-				local attrValueString = getAttrValueOutputString(key2, value2, pwKeyPattern, hideKeyPattern)
-				if attrValueString then
-					if compact then
-						table.insert(outputLine, attrValueString)
-					else	
-						 logger.writeLog(level, '\t\t' .. attrValueString .. '\n') 
-					end
-				end
-			end
-			if compact then
-				table.sort(outputLine)
-				table.insert(tableCompactOutputLine, '\n\t\t"' .. key .. '":{' .. table.concat(outputLine, ', ') .. '}')
-			else				
-				logger.writeLog(level, '\t}\n')
-			end
-		else
-			local attrValueString = getAttrValueOutputString(key, value, pwKeyPattern, hideKeyPattern)
-			if attrValueString then
-				if compact then 
-					table.insert(tableCompactOutputLine, attrValueString)
-				else
-					logger.writeLog(level, '	' .. attrValueString .. '\n')
-				end
-			end
-		end
-	end
-
-	if compact then
-		table.sort(tableCompactOutputLine)
-		logger.writeLog(level, '"' .. tableName .. '":{' .. table.concat(tableCompactOutputLine, ', ') .. '\n\t}\n')
-	else
-		logger.writeLog(level, '}\n')
-	end
+	end -- if level <= log_level_threshold
 end
 
 return logger

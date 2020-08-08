@@ -40,7 +40,7 @@ function ImageMagickAPI.init(prefs)
     dateStr = tostring(LrDate.currentTime())
     handle.commandFile = LrPathUtils.child(tmpdir, "ImageMagicCmds-" .. dateStr .. ".txt")
     --logger.writeLog(4, "ImageMagick command file:" ... handle.commandFile)
-    logger.writeLog(3, "ImageMagick command file:" .. handle.commandFile)
+    logger.writeLog(4, "ImageMagick command file:" .. handle.commandFile)
     local cmdFile = io.open(handle.commandFile, "w")
     io.close(cmdFile)
     
@@ -94,7 +94,7 @@ function ImageMagickAPI.execute_commands(handle, leave_command_file)
         end
         
         command_line = exe .. " -script " .. path_quote_selection_for_platform(handle.commandFile)
-        logger.writeLog(3, "ImageMagick execute command: " .. command_line)
+        logger.writeLog(4, "ImageMagick execute command: " .. command_line)
         if LrTasks.execute(command_line) ~= 0 then
             logger.writeLog(0, "Failed to contact ImageMagick Application")
             success = false
@@ -120,11 +120,11 @@ function ImageMagickAPI.execute_convert_get_output(handle, command_string)
         exe = handle.convert_app
 
         command_line = exe .. " " .. command_string
-        logger.writeLog(3, "ImageMagick execute command: " .. command_line)
+        logger.writeLog(5, "ImageMagick execute command: " .. command_line)
 
         exitStatus, output, errOutput = safeExecute(command_line, true)
         if exitStatus then
-            logger.writeLog(3, "ImageMagick output: " .. output)
+            logger.writeLog(5, "ImageMagick output: " .. output)
         else
             success = false
             logger.writeLog(0, "ImageMagick safeExecute failed: " .. errOutput)
