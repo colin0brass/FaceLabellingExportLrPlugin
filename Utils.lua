@@ -20,6 +20,33 @@ local tmpdir = LrPathUtils.getStandardFilePath("temp")
 
 -------------------------------------------------------------------------------
 
+function randomise_string(s)
+    math.randomseed(os.time())
+    char_list = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ'
+    digit_list = '0123456789'
+    
+    rand_s = '' -- initial value
+    if s and #s>0 then
+        for i = 1, #s do
+            char = string.sub(s, i, i)
+            if char == ' ' then -- keep spaces as spaces
+                rand_char = ' '
+            elseif tonumber(char) then -- numeric
+                rand = math.random(1, #digit_list)
+                rand_char = string.sub(digit_list, rand, rand)
+            else -- not space or numeric, so use alphabetic character
+                rand = math.random(1, #char_list)
+                rand_char = string.sub(char_list, rand, rand)
+            end
+            rand_s = rand_s .. rand_char
+        end
+    else
+        rand_s = s
+    end
+    
+    return rand_s
+end
+
 function list_reverse(list)
     reversed = {}
     if list and #list > 0 then

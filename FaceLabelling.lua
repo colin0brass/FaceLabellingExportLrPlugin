@@ -45,6 +45,7 @@ function init()
     labelling_context.people = nil
     labelling_context.labels = nil
     labelling_context.photo_dimensions = nil
+    labelling_context.obfuscate = false
     
     label_config.font_size = 40 -- initial value
     label_config.font_type = 'Courier' -- initial value
@@ -58,12 +59,12 @@ function init()
     label_config.num_rows_experiment_list = {1,2,3,4,5}
     
     photo_config.image_margin = 5 -- initial value
-    photo_config.draw_face_outlines = false
+    photo_config.draw_face_outlines = true
     photo_config.draw_label_text = true
     photo_config.draw_label_boxes = false
     photo_config.label_outline_colour = 'red'
     photo_config.label_outline_line_width = 1
-    photo_config.face_outline_colour = 'white'
+    photo_config.face_outline_colour = 'blue'
     photo_config.face_outline_line_width = 2
     photo_config.image_width_to_region_ratio_small = 20 -- to determine label text size for small images
     photo_config.image_width_to_region_ratio_large = 5 -- and larger images
@@ -167,6 +168,8 @@ function get_person(photoDimension, region)
     
     logger.writeLog(4, string.format("Name '%s', x:%d y:%d, w:%d, h:%d", 
         name, x, y, w, h))
+    
+    if labelling_context.obfuscate then name = randomise_string(name) end
     
     person = {}
     person.x = x
@@ -518,7 +521,14 @@ function FaceLabelling.renderPhoto(photo, pathOrMessage)
 
     -- input file
     exported_file = path_quote_selection_for_platform(pathOrMessage)
-    ImageMagickAPI.add_command_string(exportParams.imageMagickHandle, exported_file)
+    command_string = '# Input file'
+    ImageMagickAPI.add_command_string(exportParams.imageMagickHandle, command_string)
+    command_string = exported_file
+    if labelling_context.obfuscate then
+        --command_string = command_string .. ' -threshold -1 -alpha off'
+        command_string = command_string .. ' -fill white -colorize 95%'
+    end
+    ImageMagickAPI.add_command_string(exportParams.imageMagickHandle, command_string)
 
     -- person face outlines
     if photo_config.draw_face_outlines then
