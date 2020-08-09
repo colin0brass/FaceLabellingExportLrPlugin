@@ -23,15 +23,7 @@ ImageMagickAPI    = require("ImageMagickAPI.lua")
 -- Local variables
 local FaceLabelling = {}
 
-local exportParams = {} -- should probably pick this up properly from FaceLabellingExportService
-
--- override of paths until prefs properly integrated into dialogs
-local prefs_override = {}
-prefs_override.exiftoolprog = LrPathUtils.child(_PLUGIN.path, 'ExifTool/exiftool')
-prefs_override.imageMagicApp = "/usr/local/bin/magick"
-prefs_override.convertApp = "/usr/local/bin/convert"
---prefs_override.imageMagicApp = LrPathUtils.child(_PLUGIN.path, 'ImageMagick/magick')
---prefs_override.imageMagicApp = 'magick' -- doesn't work; assume sandbox protection
+local local_exportParams = {}
 
 -- initialised later in init function
 local label_config = {}
@@ -41,7 +33,7 @@ local labelling_context = {}
 -------------------------------------------------------------------------------
 
 function init()
-    labelling_context = {}
+    --labelling_context = {} -- now contains session data, so should not zap on each photo
     labelling_context.people = nil
     labelling_context.labels = nil
     labelling_context.photo_dimensions = nil
@@ -59,9 +51,6 @@ function init()
     label_config.num_rows_experiment_list = {1,2,3,4,5}
     
     photo_config.image_margin = 5 -- initial value
-    photo_config.draw_face_outlines = true
-    photo_config.draw_label_text = true
-    photo_config.draw_label_boxes = false
     photo_config.label_outline_colour = 'red'
     photo_config.label_outline_line_width = 1
     photo_config.face_outline_colour = 'blue'
@@ -300,7 +289,7 @@ function get_label_size(text, font, size, line_width)
                      ' -strokewidth ' .. line_width .. 
                      ' label:' .. '"' .. text .. '"' ..
                      ' -format "%wx%h" info:'
-    success, output = ImageMagickAPI.execute_convert_get_output(exportParams.imageMagickHandle, command_string)
+    success, output = ImageMagickAPI.execute_convert_get_output(labelling_context.imageMagickHandle, command_string)
     if success then
         w, h = string.match(output, "(%d+)x(%d+)")
         w = tonumber(w)
@@ -522,48 +511,48 @@ function FaceLabelling.renderPhoto(photo, pathOrMessage)
     -- input file
     exported_file = path_quote_selection_for_platform(pathOrMessage)
     command_string = '# Input file'
-    ImageMagickAPI.add_command_string(exportParams.imageMagickHandle, command_string)
+    ImageMagickAPI.add_command_string(labelling_context.imageMagickHandle, command_string)
     command_string = exported_file
     if labelling_context.obfuscate then
         --command_string = command_string .. ' -threshold -1 -alpha off'
         command_string = command_string .. ' -fill white -colorize 95%'
     end
-    ImageMagickAPI.add_command_string(exportParams.imageMagickHandle, command_string)
+    ImageMagickAPI.add_command_string(labelling_context.imageMagickHandle, command_string)
 
     -- person face outlines
-    if photo_config.draw_face_outlines then
+    if local_exportParams.draw_face_outlines then
         command_string = '# Person face outlines'
-        ImageMagickAPI.add_command_string(exportParams.imageMagickHandle, command_string)
+        ImageMagickAPI.add_command_string(labelling_context.imageMagickHandle, command_string)
         command_string = string.format('-strokewidth %d -stroke %s -fill "rgba( 255, 255, 255, 0.0)"',
                                         photo_config.face_outline_line_width,
                                         photo_config.face_outline_colour)
-        ImageMagickAPI.add_command_string(exportParams.imageMagickHandle, command_string)
+        ImageMagickAPI.add_command_string(labelling_context.imageMagickHandle, command_string)
         for i, person in pairs(people) do -- is this robust for zero length?
             command_string = string.format('-draw "rectangle %d,%d %d,%d"',
                     person['x'], person['y'], person['x']+person['w'], person['y']+person['h'])
-            ImageMagickAPI.add_command_string(exportParams.imageMagickHandle, command_string)
+            ImageMagickAPI.add_command_string(labelling_context.imageMagickHandle, command_string)
         end
     end
     
     -- label boxes
-    if photo_config.draw_label_boxes then
+    if local_exportParams.draw_label_boxes then
         command_string = '# Label box outlines'
-        ImageMagickAPI.add_command_string(exportParams.imageMagickHandle, command_string)
+        ImageMagickAPI.add_command_string(labelling_context.imageMagickHandle, command_string)
         command_string = string.format('-strokewidth %d -stroke %s -fill "rgba( 255, 255, 255, 0.0)"',
                                         photo_config.label_outline_line_width,
                                         photo_config.label_outline_colour)
-        ImageMagickAPI.add_command_string(exportParams.imageMagickHandle, command_string)
+        ImageMagickAPI.add_command_string(labelling_context.imageMagickHandle, command_string)
         for i, label in pairs(labels) do -- is this robust for zero length?
             command_string = string.format('-draw "rectangle %d,%d %d,%d"',
                     label['x'], label['y'], label['x']+label['w'], label['y']+label['h'])
-            ImageMagickAPI.add_command_string(exportParams.imageMagickHandle, command_string)
+            ImageMagickAPI.add_command_string(labelling_context.imageMagickHandle, command_string)
         end
     end
     
     -- label text
-    if photo_config.draw_label_text then
+    if local_exportParams.draw_label_text then
         command_string = '# Face labels'
-        ImageMagickAPI.add_command_string(exportParams.imageMagickHandle, command_string)
+        ImageMagickAPI.add_command_string(labelling_context.imageMagickHandle, command_string)
         for i, label in pairs(labels) do -- is this robust for zero length?
             logger.writeLog(3, "Face label: " .. label.text)
             command_string = string.format('-font %s -pointsize %d -stroke %s -strokewidth %d -fill white -undercolor "#00000080"',
@@ -571,7 +560,7 @@ function FaceLabelling.renderPhoto(photo, pathOrMessage)
                                            label.font_size, 
                                            label_config.font_colour,
                                            label_config.font_line_width)
-            ImageMagickAPI.add_command_string(exportParams.imageMagickHandle, command_string)
+            ImageMagickAPI.add_command_string(labelling_context.imageMagickHandle, command_string)
             --text = label.text
             text = minragged(label.text, label.num_rows)
             gravity = translate_align_to_gravity(label.text_align)
@@ -579,10 +568,10 @@ function FaceLabelling.renderPhoto(photo, pathOrMessage)
             --                               label.w, label.h, gravity, text)
             command_string = string.format('-background none -size %dx -gravity %s caption:"%s"',
                                            label.w, gravity, text)
-            ImageMagickAPI.add_command_string(exportParams.imageMagickHandle, command_string)
+            ImageMagickAPI.add_command_string(labelling_context.imageMagickHandle, command_string)
             command_string = string.format('-gravity NorthWest -geometry +%d+%d -composite',
                                            label.x, label.y)
-            ImageMagickAPI.add_command_string(exportParams.imageMagickHandle, command_string)
+            ImageMagickAPI.add_command_string(labelling_context.imageMagickHandle, command_string)
         end
     end
     
@@ -591,10 +580,10 @@ function FaceLabelling.renderPhoto(photo, pathOrMessage)
     exported_path = LrPathUtils.parent(pathOrMessage)
     outputPath = path_quote_selection_for_platform( LrPathUtils.child(exported_path, filename) )
     command_string = "-write " .. outputPath
-    ImageMagickAPI.add_command_string(exportParams.imageMagickHandle, command_string)
+    ImageMagickAPI.add_command_string(labelling_context.imageMagickHandle, command_string)
 
     -- execute ImageMagick commands
-    ImageMagickAPI.execute_commands(exportParams.imageMagickHandle)
+    ImageMagickAPI.execute_commands(labelling_context.imageMagickHandle)
     
     --[[
     text = 'Just testing to see how this works.'
@@ -606,33 +595,35 @@ function FaceLabelling.renderPhoto(photo, pathOrMessage)
     return success, failures
 end
 
-function FaceLabelling.start()
+function FaceLabelling.start(exportParams)
     logger.writeLog(4, "FaceLabelling.start")
-    local handle = ExifToolAPI.openSession(prefs_override)
+
+     local handle = ExifToolAPI.openSession(exportParams)
     if not handle then
         logger.writeLog(0, "Failed to start exiftool")
         return
     else
-        exportParams.exifToolHandle = handle
+        labelling_context.exifToolHandle = handle
     end
     
-    exportParams.imageMagickHandle = ImageMagickAPI.init(prefs_override)
+    labelling_context.imageMagickHandle = ImageMagickAPI.init(exportParams)
+    
+    local_exportParams = exportParams
 end
 
 function FaceLabelling.stop()
     logger.writeLog(4, "FaceLabelling.stop")
-    ExifToolAPI.closeSession(exportParams.exifToolHandle)
+    ExifToolAPI.closeSession(labelling_context.exifToolHandle)
     
-    success = ImageMagickAPI.cleanup(exportParams.imageMagickHandle, true)
+    success = ImageMagickAPI.cleanup(labelling_context.imageMagickHandle, true)
 end
 
 function FaceLabelling.getRegions(photo)
     logger.writeLog(4, 'Parse photo: ' .. photo:getRawMetadata('path'))
-    exifToolHandle = exportParams.exifToolHandle
+    exifToolHandle = labelling_context.exifToolHandle
     local facesLr, photoDimension = ExifToolAPI.getFaceRegionsList(exifToolHandle, photo:getRawMetadata('path'))
     
     return facesLr, photoDimension
-    
 end
 
 return FaceLabelling

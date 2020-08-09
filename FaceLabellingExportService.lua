@@ -15,6 +15,7 @@ local LrTasks     = import("LrTasks")
 
 --============================================================================--
 -- Local imports
+require "FaceLabellingExportDialogSections"
 
 logger = require("Logger.lua")
 logger.init("FaceLabelling", 2) -- arguments: log filename, log_level threshold (lowest is most significant)
@@ -42,7 +43,7 @@ function processRenderedPhotos( functionContext, exportContext )
                                or LOC "$$$/FaceLabelling/Progress/One=Exporting one labelled photo",
                     }
 
-    FaceLabelling.start() -- start ExifTool service
+    FaceLabelling.start(exportParams) -- configure export params and start ExifTool service
     
     logger.writeTable(3, 'exportParams', exportParams, true) -- write to log for debug
     
@@ -61,12 +62,11 @@ function processRenderedPhotos( functionContext, exportContext )
     if exportParams.LR_export_useSubfolder then
         path = LrPathUtils.child(path, exportParams.LR_export_destinationPathSuffix)
     end
+    logger.writeLog(3, 'path: ' .. path)
     
     -- not sure if path variable extracted above is needed to be used here
     -- after 'waitForRender' then the export path is included in 'pathOrMessage'
-    
-    logger.writeLog(3, 'path: ' .. path)
-    
+        
     -- Iterate through photo renditions.
     local failures = {}
     for _, rendition in exportContext:renditions{ stopIfCanceled = true } do
@@ -135,8 +135,12 @@ end
 return {
     hideSections = { 'fileNaming', 'fileSettings', 'imageSettings', 
         'outputSharpening', 'metadata', 'video', 'watermarking' },
+        
     --allowFileFormats = nil, -- nil equates to all available formats
     --allowColorSpaces = nil, -- nil equates to all color spaces
-    --startDialog = startDialog,
+    
+    startDialog = FaceLabellingExportDialogSections.startDialog,
+    sectionsForBottomOfDialog = FaceLabellingExportDialogSections.sectionsForBottomOfDialog,
+    
     processRenderedPhotos = processRenderedPhotos,
 }
