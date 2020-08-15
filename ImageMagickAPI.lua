@@ -29,8 +29,8 @@ local tmpdir = LrPathUtils.getStandardFilePath("temp")
 
 function ImageMagickAPI.init(prefs)
     local handle = {} -- handle
-    handle.app = prefs.imageMagicApp
-    handle.convert_app = prefs.convertApp
+    handle.app = prefs.imageMagickApp
+    handle.convert_app = prefs.imageConvertApp
     --if not LrFileUtils.exists(handle.app) then
     --    logger.writeLog(0, "ImageMagic: Cannot find ImageMagic app: " .. handle.app .. " not found")
     --    return false

@@ -142,7 +142,7 @@ end
 function _openExifTool(prefs)
 	local h = {} -- handle
 	
-	h.exiftool = prefs.exiftoolprog
+	h.exiftool = prefs.exifToolApp
 	if not LrFileUtils.exists(h.exiftool) then 
 		logger.writeLog(1, "ExifToolAPI: Cannot start exifTool Listener: " .. h.exiftool .. " not found\n")
 		return false 

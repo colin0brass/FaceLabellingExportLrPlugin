@@ -34,9 +34,7 @@ function processRenderedPhotos( functionContext, exportContext )
     local exportParams = exportContext.propertyTable
     
     -- Set progress title.
-
     local nPhotos = exportSession:countRenditions()
-
     local progressScope = exportContext:configureProgress {
                         title = nPhotos > 1
                                and LOC( "$$$/FaceLabelling/Progress=Exporting ^1 labelled photos", nPhotos )
@@ -47,36 +45,14 @@ function processRenderedPhotos( functionContext, exportContext )
     
     logger.writeTable(3, 'exportParams', exportParams, true) -- write to log for debug
     
-    path = ''
-    if (exportParams.LR_export_destinationType == "desktop" or 
-        exportParams.LR_export_destinationType == "documents" or 
-        exportParams.LR_export_destinationType == "home" or 
-        exportParams.LR_export_destinationType == "pictures") then
-        path = LrPathUtils.getStandardFilePath(exportParams.LR_export_destinationType)
-    elseif exportParams.LR_export_destinationType == "specificFolder" then
-        path = exportParams.LR_export_destinationPathPrefix
-    else
-        success = false
-    end
-    
-    if exportParams.LR_export_useSubfolder then
-        path = LrPathUtils.child(path, exportParams.LR_export_destinationPathSuffix)
-    end
-    logger.writeLog(3, 'path: ' .. path)
-    
-    -- not sure if path variable extracted above is needed to be used here
-    -- after 'waitForRender' then the export path is included in 'pathOrMessage'
-        
     -- Iterate through photo renditions.
     local failures = {}
     for _, rendition in exportContext:renditions{ stopIfCanceled = true } do
     
         -- Wait for next photo to render.
-
         local success, pathOrMessage = rendition:waitForRender() -- this does the export
         
         -- Check for cancellation again after photo has been rendered.
-        
         if progressScope:isCanceled() then break end    
         
         if success then
@@ -86,18 +62,11 @@ function processRenderedPhotos( functionContext, exportContext )
 
             success, failures = FaceLabelling.renderPhoto(photo, pathOrMessage)
 
-            logger.writeLog(3, 'Delete file: ' .. pathOrMessage)
-
-            --if not LrFileUtils.delete( pathOrMessage ) then -- delete temp file
-            --    logger.writeLog(0, "Failed to delete file: " .. pathOrMessage)
-            --end
-                    
-        end
-    end
+        end -- if success
+    end -- for _, rendition
     
     FaceLabelling.stop() -- stop ExifTool service
 
-    
     if #failures > 0 then
         local message
         if #failures == 1 then
@@ -106,7 +75,8 @@ function processRenderedPhotos( functionContext, exportContext )
             message = LOC ( "$$$/FaceLabelling/Errors/SomeFileFailed=^1 labelled photos failed to export correctly.", #failures )
         end
         LrDialogs.message( message, table.concat( failures, "\n" ) )
-    end
+    end -- if #failures > 0
+        
 end
 
 -------------------------------------------------------------------------------
@@ -141,6 +111,8 @@ return {
     
     startDialog = FaceLabellingExportDialogSections.startDialog,
     sectionsForBottomOfDialog = FaceLabellingExportDialogSections.sectionsForBottomOfDialog,
+    
+    exportPresetFields = FaceLabellingExportDialogSections.exportPresetFields,
     
     processRenderedPhotos = processRenderedPhotos,
 }
