@@ -68,8 +68,6 @@ function logger.init(filename, set_log_level_threshold)
             io.close(file)
         end -- if file
     end -- if LrFileUtils.exists(file_path)
-    myLogger:trace("cleared:" .. file_path)
-
 end
 	
 --------------------------------------------------------------------------------
