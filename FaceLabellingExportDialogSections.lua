@@ -1,9 +1,29 @@
 --[[----------------------------------------------------------------------------
 FaceLabellingExportDialogSections.lua
 Export dialog customization for Lightroom face labelling export plugin
+
 --------------------------------------------------------------------------------
-Colin Osborne
-August 2020
+Copyright 2020 Colin Osborne
+
+This file is part of FaceLabellingExport, a Lightroom plugin
+
+FaceLabellingExport is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+FaceLabellingExport is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
+FaceLabellingExport requires the following additional software:
+- imagemagick, convert      http://www.imagemagick.org/
+- exiftool                  https://exiftool.org
+
 ------------------------------------------------------------------------------]]
 
 --============================================================================--
@@ -13,10 +33,25 @@ local LrPathUtils = import("LrPathUtils")
 local LrFileUtils 		= import 'LrFileUtils'
 
 --============================================================================--
+-- Local variables
 
 FaceLabellingExportDialogSections = {}
 
--------------------------------------------------------------------------------
+if MAC_ENV then
+    default_exiftool_app      = LrPathUtils.child(_PLUGIN.path, 'Mac/ExifTool/exiftool')
+    default_imagemagick_app   = "/usr/local/bin/magick"
+    default_image_convert_app = "/usr/local/bin/convert"
+else
+    default_exiftool_path     = "Please enter proper app location here"
+    default_imagemagick_app   = "Please enter proper app location here"
+    default_image_convert_app = "Please enter proper app location here"
+end
+
+--============================================================================--
+-- Functions
+
+--------------------------------------------------------------------------------
+-- Get full export path
 
 local function getFullPath( propertyTable )
     success = true
@@ -38,6 +73,9 @@ local function getFullPath( propertyTable )
     
     return success, path
 end
+
+--------------------------------------------------------------------------------
+-- Update export status
 
 local function updateExportStatus( propertyTable )
     local message = nil
@@ -92,9 +130,10 @@ local function updateExportStatus( propertyTable )
         propertyTable.hasNoError = true
         propertyTable.LR_cantExportBecause = nil
     end
-    
-    --propertyTable.hasError = true -- for debug to avoid creating lots of orphan Exif threads
 end
+
+--------------------------------------------------------------------------------
+-- start dialog
 
 function FaceLabellingExportDialogSections.startDialog( propertyTable )
     propertyTable:addObserver( 'exifToolApp', updateExportStatus )
@@ -108,6 +147,9 @@ function FaceLabellingExportDialogSections.startDialog( propertyTable )
     
     updateExportStatus( propertyTable )
 end
+
+--------------------------------------------------------------------------------
+-- sections for bottom of dialog
 
 function FaceLabellingExportDialogSections.sectionsForBottomOfDialog( _, propertyTable )
     local f = LrView.osFactory()
@@ -205,18 +247,25 @@ function FaceLabellingExportDialogSections.sectionsForBottomOfDialog( _, propert
                         title = LOC "$$$/FaceLabelling/ExportDialog/FullPath=Export Path:",
                         alignment = 'right',
                         width = share 'labelWidth',
-                        visible = true,
+                        visible = bind 'hasNoError',
                     },
                     
                     f:static_text {
                         fill_horizontal = 1,
                         width_in_chars = 20,
                         title = bind 'fullPath',
-                        visible = true,
+                        visible = bind 'hasNoError',
                     },
                 },
                 
                 f: row {
+                    f:static_text {
+                        title = 'Error:',
+                        alignment = 'right',
+                        width = share 'labelWidth',
+                        visible = bind 'hasError',
+                    },
+                    
                     f:static_text {
                         fill_horizontal = 1,
                         title = bind 'message',
@@ -231,11 +280,14 @@ function FaceLabellingExportDialogSections.sectionsForBottomOfDialog( _, propert
     return result
 end
 
+--------------------------------------------------------------------------------
+-- Create export preset fields for persistent storage between sessions
+
 FaceLabellingExportDialogSections.exportPresetFields = {
-		{ key = 'exifToolApp', default = LrPathUtils.child(_PLUGIN.path, 'ExifTool/exiftool') },
-		{ key = 'imageMagickApp', default = "/usr/local/bin/magick" },
-		{ key = "imageConvertApp", default = "/usr/local/bin/convert" },
-		{ key = "draw_label_text", default = true },
+		{ key = 'exifToolApp',        default = default_exiftool_app},
+		{ key = 'imageMagickApp',     default = default_imagemagick_app },
+		{ key = "imageConvertApp",    default = default_image_convert_app },
+		{ key = "draw_label_text",    default = true },
 		{ key = "draw_face_outlines", default = false },
-		{ key = "draw_label_boxes", default = false },
+		{ key = "draw_label_boxes",   default = false },
 	}

@@ -1,138 +1,111 @@
 --[[----------------------------------------------------------------------------
 Logger.lua
 Logging helper functions for Lightroom thumbnail export
+
 --------------------------------------------------------------------------------
-Colin Osborne
-July 2020
+Copyright 2020 Colin Osborne
+
+This file is part of FaceLabellingExport, a Lightroom plugin
+
+FaceLabellingExport is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+FaceLabellingExport is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
+FaceLabellingExport requires the following additional software:
+- imagemagick, convert      http://www.imagemagick.org/
+- exiftool                  https://exiftool.org
+
 ------------------------------------------------------------------------------]]
 
 --============================================================================--
 -- Lightroom imports
-local LrLogger = import("LrLogger")
+local LrLogger          = import("LrLogger")
+local LrPathUtils 		= import 'LrPathUtils'
+local LrFileUtils 		= import 'LrFileUtils'
 
 --============================================================================--
 -- Local imports
-
 require "Utils.lua"
 
--------------------------------------------------------------------------------
+--============================================================================--
+-- Local variables
 
 local logger = {}
 
 filename = "logger"
-log_level_threshold = 2
+log_level_threshold = 2 -- defaut
 local myLogger = {}
+
+--============================================================================--
+-- Functions
+
+--------------------------------------------------------------------------------
+-- init
 
 function logger.init(filename, set_log_level_threshold)
 	log_level_threshold = set_log_level_threshold
 	
 	myLogger = LrLogger(filename)
 	myLogger:enable("logfile")
+	
+    -- open and truncate log file if it already exists
+	local docdir = LrPathUtils.getStandardFilePath("documents")
+	local file_path = LrPathUtils.child(
+	                    LrPathUtils.child(docdir, 'LrClassicLogs'), 
+	                    filename .. '.log')
+	if LrFileUtils.exists(file_path) then
+	    local file = io.open(file_path, "w")
+	    if file then
+            io.close(file)
+        end -- if file
+    end -- if LrFileUtils.exists(file_path)
+    myLogger:trace("cleared:" .. file_path)
+
 end
 	
+--------------------------------------------------------------------------------
+-- write message to log file
+
 function logger.writeLog(level, message)
 	if level <= log_level_threshold then
 		myLogger:trace(level .. " : " .. message)
 	end
 end
 
--- getAttrValueOutputString(key, value, pwKeyPattern, hideKeyPattern)
--- returns the output string of an key-value-pair according to given keyname pattern for passwords
--- and for keys to hide
-function getAttrValueOutputString(key, value, pwKeyPattern, hideKeyPattern)
-	if hideKeyPattern and string.match(key, hideKeyPattern) then
-		return nil
-	elseif pwKeyPattern and string.match(key, pwKeyPattern) then
-		return '"' .. key ..'":"***"'
-	else
-		return '"' .. key ..'":"' .. tostring(ifnil(value, '<Nil>')) ..'"'
-	end
-end
+--------------------------------------------------------------------------------
+-- write table (recursively if needed) to log file
 
-function logger.writeTable(level, tableName, printTable, compact, pwKeyPattern, hideKeyPattern, isObservableTable)
-	if level <= log_level_threshold then
-	
-        local tableCompactOutputLine = {}
-        
-        if type(printTable) ~= 'table' then
-            logger.writeLog(level, tableName .. ' is not a table, but ' .. type(printTable) .. '\n')
-            return
-        end
-        
-        -- the pairs() iterator is different for observable tables
-        local pairs_r1, pairs_r2, pairs_r3
-        if isObservableTable then
-            pairs_r1, pairs_r2, pairs_r3 = printTable:pairs()
-        else
-            pairs_r1, pairs_r2, pairs_r3 = pairs(printTable)
-        end
-        
-        if not compact then logger.writeLog(level, '"' .. tableName .. '":{\n') end
-    --	for key, value in pairs( printTable ) do
-        for key, value in pairs_r1, pairs_r2, pairs_r3 do
-            if type(key) == 'table' then
-                local outputLine = {}
-                if not compact then
-                    logger.writeLog(level, '\t<table>' .. ':{' ..  iif(compact, ' ', '\n'))
-                end
-                for key2, value2 in pairs( key ) do
-                    local attrValueString = getAttrValueOutputString(key2, value2, pwKeyPattern, hideKeyPattern)
-                    
-                    if compact then
-                        table.insert(outputLine, attrValueString)
-                    else	
-                        logger.writeLog(level, '\t\t' .. attrValueString .. '\n')
-                    end
-                end
-                if attrValueString then
-                    if compact then
-                        table.sort(outputLine)
-                        table.insert(tableCompactOutputLine, '\n\t\t<table> : {' .. table.concat(outputLine, ', ') .. '}')
-                    else				
-                        logger.writeLog(level, '\t}\n')
-                    end
-                end
-            elseif type(value) == 'table' and not (hideKeyPattern and string.match(key, hideKeyPattern)) then
-                local outputLine = {}
-                if not compact then
-                    logger.writeLog(level, '\t"' .. key .. '":{' ..  iif(compact, ' ', '\n'))
-                end
-                for key2, value2 in pairs( value ) do
-                    local attrValueString = getAttrValueOutputString(key2, value2, pwKeyPattern, hideKeyPattern)
-                    if attrValueString then
-                        if compact then
-                            table.insert(outputLine, attrValueString)
-                        else	
-                             logger.writeLog(level, '\t\t' .. attrValueString .. '\n') 
-                        end
-                    end
-                end
-                if compact then
-                    table.sort(outputLine)
-                    table.insert(tableCompactOutputLine, '\n\t\t"' .. key .. '":{' .. table.concat(outputLine, ', ') .. '}')
-                else				
-                    logger.writeLog(level, '\t}\n')
-                end
+function logger.writeTable(level, tbl, indent)
+    if level <= log_level_threshold then
+        if not indent then indent = 0 end
+        for k, v in pairs(tbl) do
+            if type(k) == "table" then
+                logger.writeTable(level, k, indent+1)
             else
-                local attrValueString = getAttrValueOutputString(key, value, pwKeyPattern, hideKeyPattern)
-                if attrValueString then
-                    if compact then 
-                        table.insert(tableCompactOutputLine, attrValueString)
-                    else
-                        logger.writeLog(level, '	' .. attrValueString .. '\n')
-                    end
+                formatting = string.rep("  ", indent) .. k .. ": "
+                if type(v) == "table" then
+                    logger.writeLog(level, formatting)
+                    logger.writeTable(level, v, indent+1)
+                elseif type(v) == 'boolean' then
+                    logger.writeLog(level, formatting .. tostring(v))
+                else
+                    logger.writeLog(level, formatting .. v)
                 end
             end
-        end
-    
-        if compact then
-            table.sort(tableCompactOutputLine)
-            logger.writeLog(level, '"' .. tableName .. '":{' .. table.concat(tableCompactOutputLine, ', ') .. '\n\t}\n')
-        else
-            logger.writeLog(level, '}\n')
-        end
-	
-	end -- if level <= log_level_threshold
+        end -- for k, v in pairs(tbl)
+    end -- if level <= log_level_threshold
 end
+
+--------------------------------------------------------------------------------
+-- return table
 
 return logger

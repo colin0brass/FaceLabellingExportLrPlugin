@@ -1,9 +1,29 @@
 --[[----------------------------------------------------------------------------
 ImageMagickAPI.lua
 ImageMagick functions for Lightroom thumbnail export
+
 --------------------------------------------------------------------------------
-Colin Osborne
-August 2020
+Copyright 2020 Colin Osborne
+
+This file is part of FaceLabellingExport, a Lightroom plugin
+
+FaceLabellingExport is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+FaceLabellingExport is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
+FaceLabellingExport requires the following additional software:
+- imagemagick, convert      http://www.imagemagick.org/
+- exiftool                  https://exiftool.org
+
 ------------------------------------------------------------------------------]]
 
 --============================================================================--
@@ -11,7 +31,6 @@ August 2020
 local LrDate 			= import 'LrDate'
 local LrPathUtils 		= import 'LrPathUtils'
 local LrFileUtils 		= import 'LrFileUtils'
---local LrPrefs	 		= import 'LrPrefs'
 local LrTasks 			= import 'LrTasks'
 
 --============================================================================--
@@ -24,22 +43,22 @@ local ImageMagickAPI = {}
 
 local tmpdir = LrPathUtils.getStandardFilePath("temp")
 
--------------------------------------------------------------------------------
+--============================================================================--
+-- Functions
+
+--------------------------------------------------------------------------------
 -- ImageMagick session handling
 
 function ImageMagickAPI.init(prefs)
     local handle = {} -- handle
     handle.app = prefs.imageMagickApp
     handle.convert_app = prefs.imageConvertApp
-    --if not LrFileUtils.exists(handle.app) then
-    --    logger.writeLog(0, "ImageMagic: Cannot find ImageMagic app: " .. handle.app .. " not found")
-    --    return false
-    --end
         
     -- create unique command file
-    dateStr = tostring(LrDate.currentTime())
+    local dateStr = tostring(LrDate.currentTime())
     handle.commandFile = LrPathUtils.child(tmpdir, "ImageMagicCmds-" .. dateStr .. ".txt")
-    --logger.writeLog(4, "ImageMagick command file:" ... handle.commandFile)
+    
+    -- create and truncate command file
     logger.writeLog(4, "ImageMagick command file:" .. handle.commandFile)
     local cmdFile = io.open(handle.commandFile, "w")
     io.close(cmdFile)
@@ -58,12 +77,10 @@ function ImageMagickAPI.cleanup(handle, leave_command_file)
         end
     end
     
-    -- should this set handle to nil?
-    
     return success
 end
 
-----------------------------------------------------------------------------------
+--------------------------------------------------------------------------------
 -- ImageMagick command handling
 
 function ImageMagickAPI.add_command_string(handle, command_string)
@@ -134,5 +151,8 @@ function ImageMagickAPI.execute_convert_get_output(handle, command_string)
 
     return success, output
 end
+
+--------------------------------------------------------------------------------
+-- return table
 
 return ImageMagickAPI

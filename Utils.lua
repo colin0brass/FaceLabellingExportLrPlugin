@@ -1,9 +1,29 @@
 --[[----------------------------------------------------------------------------
 Utils.lua
 Helper functions for Lightroom thumbnail export
+
 --------------------------------------------------------------------------------
-Colin Osborne
-August 2020
+Copyright 2020 Colin Osborne
+
+This file is part of FaceLabellingExport, a Lightroom plugin
+
+FaceLabellingExport is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+FaceLabellingExport is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
+FaceLabellingExport requires the following additional software:
+- imagemagick, convert      http://www.imagemagick.org/
+- exiftool                  https://exiftool.org
+
 ------------------------------------------------------------------------------]]
 
 --============================================================================--
@@ -18,7 +38,82 @@ local LrFunctionContext = import 'LrFunctionContext'
 -- Local variables
 local tmpdir = LrPathUtils.getStandardFilePath("temp")
 
--------------------------------------------------------------------------------
+--============================================================================--
+-- Functions
+
+--------------------------------------------------------------------------------
+-- Split text nicely over specified number of lines
+
+-- adapted from: https://stackoverflow.com/questions/5059956/algorithm-to-divide-text-into-3-evenly-sized-groups
+function text_line_wrap(text, num_lines)
+    words = {}
+    for word in text:gmatch("%w+") do table.insert(words, word) end
+    num_words = #words
+    num_lines = math.min(num_lines, num_words) -- no more lines than words
+    
+    cumulative_width = {}
+    cumulative_width[1] = 0
+    for i, word in pairs(words) do
+        table.insert(cumulative_width, cumulative_width[#cumulative_width] + string.len(word))
+    end
+    total_width = cumulative_width[#cumulative_width] + #words - 1 -- len words -1 space
+    line_width = (total_width - (num_lines - 1)) / num_lines -- num_lines-1 line breaks
+    
+    -- cost of a line (words[i] .. words[j-1])
+    -- lua table indexes start at 1 (not 0)
+    function cost(i, j)
+        actual_line_width = math.max(j - i - 1, 0) + cumulative_width[j+1] - cumulative_width[i+1]
+        return (line_width - actual_line_width)^2
+    end
+    
+    best = {}
+    cost_index_list = {}
+    cost_index_pair = {cost = 0, word_index = nil}
+    cost_index_list[1] = cost_index_pair
+    for w = 1, #words do -- initialise array
+        cost_index_pair = {cost = math.huge, word_index = nil}
+        cost_index_list[w+1] = cost_index_pair
+    end
+    table.insert(best, cost_index_list)
+    
+    for l = 1, num_lines do
+        cost_index_list = {}
+        for j = 0, num_words do
+            min_cost = math.huge -- initial value
+            min_index = 0 -- initial value
+            for k = 0, j do
+                --logger.writeLog(1, string.format("index l,j,k: %d,%d,%d", l,j,k))
+                k_cost = best[l-1+1][k+1].cost + cost(k,j)
+                if k_cost < min_cost then
+                    min_cost = k_cost
+                    min_index = k
+                end
+            end
+            table.insert(cost_index_list, {cost = min_cost, word_index = min_index})
+        end -- for j
+        table.insert(best, cost_index_list)
+    end -- for i
+    
+    lines_reverse_order = {}
+    b = num_words
+    for l = num_lines, 1, -1 do
+        a = best[l+1][b+1].word_index
+        sliced = {}
+        for i=a+1, b do sliced[#sliced+1] = words[i] end
+        line_string = table.concat(sliced, ' ')
+        --logger.writeLog(1, line_string)
+        table.insert(lines_reverse_order, ' ' .. line_string)
+        b = a
+    end
+    
+    lines = list_reverse(lines_reverse_order)
+    lines_string = table.concat(lines, "\n")
+    
+    return lines_string
+end
+
+--------------------------------------------------------------------------------
+-- String randomisation, e.g. for photo label obfuscation
 
 function randomise_string(s)
     math.randomseed(os.time())
@@ -57,6 +152,9 @@ function list_reverse(list)
     return reversed
 end
 
+--------------------------------------------------------------------------------
+-- Table copying
+
 -- https://stackoverflow.com/questions/640642/how-do-you-copy-a-lua-table-by-value
 function table_copy(obj, seen)
     if type(obj) ~= 'table' then return obj end
@@ -68,27 +166,23 @@ function table_copy(obj, seen)
     return res
 end
 
-function ifnil(str, subst)
-	return ((str == nil) and subst) or str
+--------------------------------------------------------------------------------
+-- Condition handling helpers
+
+function ifnil(str, alternate)
+    result = str -- initial value
+    if str == nil then result = alternate end
+	return result
 end 
 
-function iif(condition, thenExpr, elseExpr)
-	if condition then
-		return thenExpr
-	else
-		return elseExpr
-	end
+function iif(condition, then_expr, else_expr)
+    result = nil -- initial value
+	if condition then result = then_expr else result = else_expr end
+	return result
 end
 
-function cmdlineQuote()
-	if WIN_ENV then
-		return '"'
-	elseif MAC_ENV then
-		return ''
-	else
-		return ''
-	end
-end
+--------------------------------------------------------------------------------
+-- Quote helper for Windows vs Mac
 
 function path_quote_selection_for_platform(path)
     if WIN_ENV == true then
@@ -99,6 +193,9 @@ function path_quote_selection_for_platform(path)
     
     return path
 end
+
+--------------------------------------------------------------------------------
+-- System command execution and results return
 
 -- https://community.adobe.com/t5/lightroom-classic/get-output-from-lrtasks-execute-cmd/td-p/8778861?page=1
 
