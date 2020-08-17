@@ -24,15 +24,25 @@ FaceLabellingExport requires the following additional software:
 - imagemagick, convert      http://www.imagemagick.org/
 - exiftool                  https://exiftool.org
 
+Inspiration gleaned from:
+-- https://github.com/Jaid/lightroom-sdk-8-examples
+-- https://github.com/flingo64/PhotoStation-Upload-Lr-Plugin
+-- https://stackoverflow.com/questions/5059956/algorithm-to-divide-text-into-3-evenly-sized-groups
+-- https://stackoverflow.com/questions/640642/how-do-you-copy-a-lua-table-by-value
+-- https://community.adobe.com/t5/lightroom-classic/get-output-from-lrtasks-execute-cmd/td-p/8778861?page=1
+
 ------------------------------------------------------------------------------]]
 
 --============================================================================--
 -- Lightroom imports
-local LrDate 			= import 'LrDate'
-local LrPathUtils 		= import 'LrPathUtils'
-local LrFileUtils 		= import 'LrFileUtils'
-local LrTasks 			= import 'LrTasks'
-local LrFunctionContext = import 'LrFunctionContext'
+local LrDate            = import("LrDate")
+local LrFileUtils       = import("LrFileUtils")
+local LrPathUtils       = import("LrPathUtils")
+local LrTasks           = import("LrTasks")
+local LrFunctionContext = import("LrFunctionContext")
+
+--============================================================================--
+-- Local imports
 
 --============================================================================--
 -- Local variables
@@ -40,6 +50,21 @@ local tmpdir = LrPathUtils.getStandardFilePath("temp")
 
 --============================================================================--
 -- Functions
+
+--------------------------------------------------------------------------------
+-- Check if file is present
+
+function file_present( file )
+    local file_present = true
+    
+    if not file then
+        file_present = false
+    else
+        file_present = LrFileUtils.exists(file)
+    end
+    
+    return file_present
+end
 
 --------------------------------------------------------------------------------
 -- Split text nicely over specified number of lines

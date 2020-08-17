@@ -24,6 +24,13 @@ FaceLabellingExport requires the following additional software:
 - imagemagick, convert      http://www.imagemagick.org/
 - exiftool                  https://exiftool.org
 
+Inspiration gleaned from:
+-- https://github.com/Jaid/lightroom-sdk-8-examples
+-- https://github.com/flingo64/PhotoStation-Upload-Lr-Plugin
+-- https://stackoverflow.com/questions/5059956/algorithm-to-divide-text-into-3-evenly-sized-groups
+-- https://stackoverflow.com/questions/640642/how-do-you-copy-a-lua-table-by-value
+-- https://community.adobe.com/t5/lightroom-classic/get-output-from-lrtasks-execute-cmd/td-p/8778861?page=1
+
 ------------------------------------------------------------------------------]]
 
 --============================================================================--
