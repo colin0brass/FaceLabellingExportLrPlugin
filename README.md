@@ -19,7 +19,7 @@ put a timescale on it due to real-world committments.
 Abbreviated instructions:
 1. Please note this is an early-life prototype, so please only try if you are comfortable with debugging
 2. Install helper apps: imagemagick (http://www.imagemagick.org) and exiftool (https://exiftool.org)
-3. Install this plugin in Lightroom Plug-in Manager
+3. Download this plugin & install in Lightroom Plug-in Manager
 4. Configure this plugin in Lightroom Plug-in Manager: ensure helper apps are found
 5. Select some photos in Lightroom, "Export..."
 6. Select "Export to:" "Face Labelling Export"; check the export options; "Export"
@@ -43,6 +43,8 @@ downloaded and installed.
 
 ## Plug-in installation
 Download and unzip (if zipped) this plug-in to a suitable location on your computer.
+* e.g. from github, see "Code" drop-down, and select "Download ZIP"
+
 Add the plug-in into Lightroom Classic
 * In Lightroom, go to File -> Plug-in Manager
 * From there, "Add", select the new plug-in and "Add Plug-in"
