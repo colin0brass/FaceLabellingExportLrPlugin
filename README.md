@@ -104,8 +104,6 @@ and finally click "Export"
 * Deploy helper-apps directly in plug-in distribution instead of requiring separate installation (ExifTool & ImageMagick)
 * Improve labelling layout, font configuration, label backgrounds
 * Improve label positioning algorithm
-* Add output obfuscation option
-* Add option to strip exif metadata from file
 
 ## Test platform
 I have used the following for my (limited) testing so far:
