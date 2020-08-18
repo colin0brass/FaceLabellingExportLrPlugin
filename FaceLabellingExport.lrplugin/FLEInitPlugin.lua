@@ -67,7 +67,7 @@ local FLEUrl = "https://github.com/colin0brass/FaceLabellingExportLrPlugin"
 -- Log export session to file for diagnostics & debug
 -- Generally saved to Documents/LrClassicLogs
 prefs.logger_filename    = "FaceLabellingExport"
-prefs.logger_verbosity   = 5 -- 0 is nothing except errors; 2 is normally sensible; 5 for everything
+prefs.logger_verbosity   = 2 -- 0 is nothing except errors; 2 is normally sensible; 5 for everything
 
 -- Plug-in web URL
 prefs.FLEUrl = FLEUrl
