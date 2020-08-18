@@ -1,9 +1,9 @@
 # FaceLabellingExportLrPlugin
+https://github.com/colin0brass/FaceLabellingExportLrPlugin
 
 ## About
 This is a plug-in for Adobe Lightroom (Classic), to export images with face labelling from EXIF metadata
 * Plug-in name: FaceLabellingExport.lrplugin
-* Download from: https://github.com/colin0brass/FaceLabellingExportLrPlugin
 
 ## Illustration of Purpose
 The image below is deliberately obfuscated (confidential details hidden by fading image and randomising text), however
