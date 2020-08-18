@@ -3,6 +3,7 @@
 ## About
 This is a plug-in for Adobe Lightroom (Classic), to export images with face labelling from EXIF metadata
 * Plug-in name: FaceLabellingExport.lrplugin
+* Download from: https://github.com/colin0brass/FaceLabellingExportLrPlugin
 
 ## Status
 Currently this is an early-life prototype with various known and suspected limitations.
@@ -86,11 +87,11 @@ and finally click "Export"
 * Deploy helper-apps directly in plug-in distribution instead of requiring separate installation (ExifTool & ImageMagick)
 
 ## Test platform
-I have used the following for my (limited) amount of testing so far:
+I have used the following for my (limited) testing so far:
 
 ### Mac
-* Hardware: iMac (2017), Intel Core i5; 16GB RAM
-* OS: MacOS Catalina, v10.15.6
+* iMac (2017), Intel Core i5; 16GB RAM
+* MacOS Catalina, v10.15.6
 * Lightroom Classic v9.4
-* ImageMagick 7.0.10-25 Q16 x86_64 2020-08-01
-* ExifTol 12.01
+* ImageMagick 7.0.10-25
+* ExifTool 12.01

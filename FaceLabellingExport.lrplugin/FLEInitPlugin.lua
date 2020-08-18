@@ -58,8 +58,13 @@ else
     default_image_convert_app = "Please enter proper app location here"
 end
 
+local FLEUrl = "https://github.com/colin0brass/FaceLabellingExportLrPlugin"
+
 --============================================================================--
 -- Initialise preferences
+
+-- Plug-in web URL
+prefs.FLEUrl = FLEUrl
 
 -- exiftool app
 if not prefs.exifToolApp then

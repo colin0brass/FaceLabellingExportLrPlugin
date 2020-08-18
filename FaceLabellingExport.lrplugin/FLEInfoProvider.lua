@@ -297,6 +297,29 @@ end
 --------------------------------------------------------------------------------
 -- sections for top of dialog
 function FLEInfoProvider.sectionsForTopOfDialog(f, propertyTable )
+    local prefs = LrPrefs.prefsForPlugin()
+    local bind = LrView.bind
+    
+    local result = {
+        {
+            title = LOC "$$$/FaceLabelling/PluginDialog/Header=FaceLabellingExport",
+            
+            bind_to_object = propertyTable,
+            
+            f:row {
+                f:static_text {
+                    title = LOC "$$$/FaceLabelling/PluginDialog/Header/Online=Click here to open plug-in home-page on GitHub, e.g. to check for updates",
+                    tooltip = "Click to open in browser",
+                    alignment = "left",
+                    mouse_down = function()
+                        LrHttp.openUrlInBrowser(prefs.FLEUrl)
+                    end,
+                }, -- f:static_text
+            }, -- f:row
+        }
+    } -- result
+    
+    return result
 end
 
 function FLEInfoProvider.sectionsForBottomOfDialog(f, propertyTable )
