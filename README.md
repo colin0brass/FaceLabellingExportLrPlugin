@@ -25,8 +25,8 @@ There is certainly lots that can be improved (see some thoughts listed further b
 ## Status
 Currently this is an early-life prototype with various known and suspected limitations.
 
-It works for me, on my Mac computer, but I have not yet given it any extensive robustness testing, and have not 
-tested it on Windows at all yet
+It works for me, on both Mac and Windows, but I have not yet given it any extensive robustness testing, so I fully
+expect there will be issues in wider deployment.
 
 I strongly advise you only try this if you are comfortable with computing and scripting, and prepared for some 
 failures and debug.
@@ -37,7 +37,8 @@ due to real-world committments.
 ## Quick-Start Notes
 Abbreviated instructions:
 1. Please note this is an early prototype, so please only try if you are comfortable with computing and likely issues
-2. Install helper apps: imagemagick (http://www.imagemagick.org) and exiftool (https://exiftool.org)
+2. Install helper apps: imagemagick (http://www.imagemagick.org) and perhaps exiftool (https://exiftool.org) if the
+copy of exiftool I included in the plug-in doesn't work for you
 3. Download this plug-in & install in Lightroom Plug-in Manager
 4. Configure this plug-in in Lightroom Plug-in Manager: ensure helper apps are found
 5. Select some photos in Lightroom, "Export..."
@@ -48,10 +49,10 @@ Abbreviated instructions:
 ### Helper apps
 This plug-in requires the following separate helper tools to be installed:
 * imagemagick: http://www.imagemagick.org
-* exiftool: https://exiftool.org
+* exiftool: https://exiftool.org    (I have tried including this in the plug-in, so you might not need to install this)
 
-I have tried including a copy of ExifTool inside this plug-in, however I have not yet tested it on different platforms 
-so it might prove not be useful or robust.
+I have tried including a copy of ExifTool inside this plug-in, and it works for me both on Mac and Windows, but I
+fully expect there might be limitations and others might end up having to install ExifTool themselves.
 
 On Mac the operating system requires binaries to be confirmed safe before use. To do this, open the plug-in folder 
 in Finder (e.g. right click on it and 'Show Package Contents), browse to helper app file (e.g. Mac/ExifTool/exiftool), 
@@ -73,7 +74,8 @@ Once the plug-in is installed, please check its configuration in Plug-in Manager
 See "Overall Settings", where the paths to the helper apps are configured.
 
 It will have a go at choosing default paths for Mac vs Windows, however they might well be wrong for your computer 
-setup, so please do check and update as necessary.
+setup, so please do check and update as necessary. The default paths for ImageMagick are simple fixed paths, with no
+clever sensing or update going on, so they are highly likely to need updating.
 
 Please check if it says 'Found' for all of the helper apps, and if not, ensure they are installed and that the 
 paths are correct.
@@ -93,7 +95,7 @@ Check the export location, choose your labelling options (e.g. whether to draw t
 and finally click "Export"
 
 # Limitations - Known & Likely
-* Not yet tested on Windows (only Mac), therefore it is highly likely to be broken
+* Mainly tested on Mac, with a quick successful test on Windows, but I fully expect there to be robustness/portability issues
 * Only tested with jpeg images, therefore other file types are likely not to work
 * Not specifically tested with rotated images, therefore behaviour is probably wrong
 * Not tested with a wide range of images, types and exif labelling, therefore probably limitations
@@ -114,3 +116,10 @@ I have used the following for my (limited) testing so far:
 * Lightroom Classic v9.4
 * ImageMagick 7.0.10-25
 * ExifTool 12.01
+
+### Windows
+* Lenovo Thinkpad, Intel i3; 8GB RAM
+* Windows 10 Home, v1909
+* lightroom Classic v9.4
+* ImageMagic 7.0.10-28
+* ExifTool 12.04

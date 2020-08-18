@@ -54,9 +54,9 @@ if MAC_ENV then
     default_imagemagick_app   = "/usr/local/bin/magick"
     default_image_convert_app = "/usr/local/bin/convert"
 else
-    default_exiftool_path     = LrPathUtils.child(_PLUGIN.path, 'Win\ExifTool\exiftool.exe')
-    default_imagemagick_app   = "Please enter proper app location here"
-    default_image_convert_app = "Please enter proper app location here"
+    default_exiftool_path     = LrPathUtils.child(_PLUGIN.path, 'Win/ExifTool/exiftool.exe')
+    default_imagemagick_app   = "C:/Program Files/ImageMagick-7.0.10-Q16-HDRI/magick.exe"
+    default_image_convert_app = "C:/Program Files/ImageMagick-7.0.10-Q16-HDRI/convert.exe"
 end
 
 local FLEUrl = "https://github.com/colin0brass/FaceLabellingExportLrPlugin"
