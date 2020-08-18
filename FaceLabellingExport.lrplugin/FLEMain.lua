@@ -291,10 +291,12 @@ end
 -- Label positioning
 
 function get_label_position_and_size(label)
+    local success = true
+    
     person = label.person
     text = text_line_wrap(label.text, label.num_rows)
     
-    label_w, label_h = get_label_size(text, 
+    success, label_w, label_h = get_label_size(text, 
                                       prefs.font_type,
                                       label.font_size,
                                       prefs.font_line_width)
@@ -403,13 +405,15 @@ function get_label_size(text, font, size, line_width)
             logger.writeLog(5, "Size: " .. w .. " x " .. h)
         end
     end
-    return w, h
+    return success, w, h
 end
 
 --------------------------------------------------------------------------------
 -- Algorithm to determine label font size according to picture aspect ratio
 
 function determine_label_font_size()
+    local success = true
+    
     people = labelling_context.people
     photoDimension = labelling_context.photo_dimensions
     
@@ -424,28 +428,30 @@ function determine_label_font_size()
             target_width = average_region_size
         end
         
-        test_label_w, test_label_h = get_label_size(prefs.test_label, 
+        success, test_label_w, test_label_h = get_label_size(prefs.test_label, 
                                                     prefs.font_type,
                                                     font_size,
                                                     prefs.font_line_width)
-        if test_label_w < target_width then -- smaller than target
-            while (test_label_w < target_width) do
-                font_size = font_size + 2
-                test_label_w, test_label_h = get_label_size(prefs.test_label, 
-                                                            prefs.font_type,
-                                                            font_size,
-                                                            prefs.font_line_width)
-            end
-        else -- larger than target
-            while (test_label_w > target_width) do
-                font_size = font_size - 2
-                test_label_w, test_label_h = get_label_size(prefs.test_label, 
-                                                            prefs.font_type,
-                                                            font_size,
-                                                            prefs.font_line_width)
-            end
-        end
-    end
+        if success then
+            if test_label_w < target_width then -- smaller than target
+                while (test_label_w < target_width) do
+                    font_size = font_size + 2
+                    success, test_label_w, test_label_h = get_label_size(prefs.test_label, 
+                                                                prefs.font_type,
+                                                                font_size,
+                                                                prefs.font_line_width)
+                end
+            else -- larger than target
+                while (test_label_w > target_width) do
+                    font_size = font_size - 2
+                    success, test_label_w, test_label_h = get_label_size(prefs.test_label, 
+                                                                prefs.font_type,
+                                                                font_size,
+                                                                prefs.font_line_width)
+                end
+            end -- if test_label_w < target_width; else
+        end -- success
+    end -- if average_region_size and average_region_size > 0
 
     return font_size
 end
