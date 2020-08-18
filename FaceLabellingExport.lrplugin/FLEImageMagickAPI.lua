@@ -112,7 +112,7 @@ function FLEImageMagickAPI.execute_commands(handle, leave_command_file)
     if not handle then
         success = false
     else
-        exe = handle.app
+        exe = app_exe_quote_selection_for_platform(handle.app)
         if not LrFileUtils.exists(handle.commandFile) then
             logger.writeLog(0, "Could not find ImageMagick command file:" .. handle.commandFile)
         end

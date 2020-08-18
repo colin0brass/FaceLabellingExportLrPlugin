@@ -157,7 +157,7 @@ function _openExifTool(exportParams)
 	local handle = {} -- handle
 	local success = true -- initial value
 	
-	handle.exiftool_app = exportParams.exifToolApp
+	exe = app_exe_quote_selection_for_platform(exportParams.exifToolApp)
 	
 	-- create unique CommandFile and LogFile
     local dateStr = tostring(LrDate.currentTime())
@@ -186,13 +186,13 @@ function _openExifTool(exportParams)
         if LrFileUtils.exists(handle.exiftool_error_log_file) then LrFileUtils.delete(handle.exiftool_error_log_file) end
     
         LrTasks.startAsyncTask ( function()
-                local command = handle.exiftool_app ..
+                local command = exe ..
                                 ' -stay_open True -@ ' .. command_file ..
                                 exif_args .. ' > ' .. log_file .. ' 2> ' .. error_log_file
 
-                if WIN_ENV then
-                    command = '"' .. command .. '"'
-                end
+                --if WIN_ENV then
+                --    command = '"' .. command .. '"'
+                --end
                 
                 logger.writeLog(3, string.format("exiftool starting: (%s)\n", command))
                 local exitStatus = LrTasks.execute(command)

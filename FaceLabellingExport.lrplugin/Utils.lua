@@ -219,6 +219,16 @@ function path_quote_selection_for_platform(path)
     return path
 end
 
+function app_exe_quote_selection_for_platform(path)
+    if WIN_ENV == true then
+        path = '"' .. path .. '"'
+    else -- Mac
+        path = path -- no change
+    end
+    
+    return path
+end
+
 --------------------------------------------------------------------------------
 -- System command execution and results return
 

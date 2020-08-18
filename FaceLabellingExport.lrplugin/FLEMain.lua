@@ -393,9 +393,15 @@ function get_label_size(text, font, size, line_width)
     success, output = FLEImageMagickAPI.execute_convert_get_output(labelling_context.imageMagickHandle, command_string)
     if success then
         w, h = string.match(output, "(%d+)x(%d+)")
-        w = tonumber(w)
-        h = tonumber(h)
-        logger.writeLog(5, "Size: " .. w .. " x " .. h)
+        if (w == nil) or (h == nil) then
+            success = false
+            w,h = 0,0
+            logger.writeLog(0, "get_label_size: Failed to get label size")
+        else
+            w = tonumber(w)
+            h = tonumber(h)
+            logger.writeLog(5, "Size: " .. w .. " x " .. h)
+        end
     end
     return w, h
 end
