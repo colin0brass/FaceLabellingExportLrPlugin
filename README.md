@@ -5,6 +5,20 @@ This is a plug-in for Adobe Lightroom (Classic), to export images with face labe
 * Plug-in name: FaceLabellingExport.lrplugin
 * Download from: https://github.com/colin0brass/FaceLabellingExportLrPlugin
 
+## Illustration of Purpose
+The image below is deliberately obfuscated (confidential details hidden by fading image and randomising text), however
+hopefully gives an idea of the purpose of this plug-in.
+
+The face region outline boxes are optional and would typically be left disabled in real use, however I added them
+in this example since I feel they help to show what is going on for this highly faded-out image.
+![obfuscated example image](https://github.com/colin0brass/FaceLabellingExportLrPlugin/blob/master/obfuscated_label_test.jpg)
+
+The plug-in did the following:
+1. Exported image file from Lightroom to specified location
+2. Used existing exif metadata in the image file to locate the face regions
+3. Created name label text for all the faces and devised where to position on the image and how to format them
+4. Annotated the labels on the image and saved as update to the exported file
+
 ## Status
 Currently this is an early-life prototype with various known and suspected limitations.
 
