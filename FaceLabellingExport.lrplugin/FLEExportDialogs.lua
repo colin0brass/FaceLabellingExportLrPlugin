@@ -147,6 +147,7 @@ end
 function FLEExportDialogs.endDialog( propertyTable )
     local prefs = LrPrefs.prefsForPlugin()
     
+    -- copy any updated preferences back for persistent storage
     prefs.draw_label_text   = propertyTable.draw_label_text
     prefs.draw_face_outlines= propertyTable.draw_face_outlines
     prefs.draw_label_boxes  = propertyTable.draw_label_boxes

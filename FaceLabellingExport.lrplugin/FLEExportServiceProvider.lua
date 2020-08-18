@@ -125,6 +125,7 @@ return {
     --allowColorSpaces = nil, -- nil equates to all color spaces
     
     startDialog                 = FLEExportDialogs.startDialog,
+    endDialog                   = FLEExportDialogs.endDialog,
     sectionsForTopOfDialog      = FLEExportDialogs.sectionsForTopOfDialog,
     sectionsForBottomOfDialog   = FLEExportDialogs.sectionsForBottomOfDialog,
     

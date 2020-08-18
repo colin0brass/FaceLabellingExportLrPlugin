@@ -105,7 +105,7 @@ end
 function FLEInfoProvider.startDialog( propertyTable )
     local prefs = LrPrefs.prefsForPlugin()
     
-    -- copy preferences from configuration in Lightroom Plug-in Manager
+    -- copy preferences
     propertyTable.exifToolApp       = prefs.exifToolApp
     propertyTable.imageMagickApp    = prefs.imageMagickApp
     propertyTable.imageConvertApp   = prefs.imageConvertApp
