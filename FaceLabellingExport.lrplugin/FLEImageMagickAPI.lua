@@ -141,7 +141,7 @@ function FLEImageMagickAPI.execute_convert_get_output(handle, command_string)
     if not handle then
         success = false
     else
-        exe = handle.convert_app
+        exe = app_exe_quote_selection_for_platform(handle.convert_app)
 
         command_line = exe .. " " .. command_string
         logger.writeLog(5, "ImageMagick execute command: " .. command_line)

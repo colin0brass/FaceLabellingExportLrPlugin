@@ -88,7 +88,11 @@ prefs.remove_exif        = ifnil(prefs.remove_exif,         false)
 
 -- Preferences; not currently copied into ExportParams since not edited through UI
 -- Label preferences; not yet configurable through UI
-prefs.font_type                 = 'Courier'
+if MAC_ENV then -- unfortunately not all same fonts available on Mac & Win
+    prefs.font_type                 = 'Courier'
+else -- windows
+    prefs.font_type                 = 'Courier-New'
+end
 prefs.font_colour               = 'white'
 prefs.font_line_width           = 1
 prefs.default_position          = 'below'
