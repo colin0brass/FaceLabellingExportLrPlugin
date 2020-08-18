@@ -1,6 +1,6 @@
 --[[----------------------------------------------------------------------------
 FLEImageMagickAPI.lua
-ImageMagick functions for Lightroom thumbnail export
+ImageMagick functions for Lightroom face labelling export plugin
 
 --------------------------------------------------------------------------------
 Copyright 2020 Colin Osborne

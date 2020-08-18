@@ -1,6 +1,6 @@
 --[[----------------------------------------------------------------------------
 Utils.lua
-Helper functions for Lightroom thumbnail export
+Helper functions for Lightroom face labelling export plugin
 
 --------------------------------------------------------------------------------
 Copyright 2020 Colin Osborne

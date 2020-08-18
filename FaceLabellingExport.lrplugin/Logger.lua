@@ -1,6 +1,6 @@
 --[[----------------------------------------------------------------------------
 Logger.lua
-Logging helper functions for Lightroom thumbnail export
+Logging helper functions for Lightroom face labelling export plugin
 
 --------------------------------------------------------------------------------
 Copyright 2020 Colin Osborne
