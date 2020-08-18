@@ -200,7 +200,8 @@ function FLEMain.renderPhoto(photo, pathOrMessage)
     -- output file
     local filename = LrPathUtils.leafName( pathOrMessage )
     exported_path = LrPathUtils.parent(pathOrMessage)
-    outputPath = path_quote_selection_for_platform( LrPathUtils.child(exported_path, filename) )
+    --outputPath = path_quote_selection_for_platform( LrPathUtils.child(exported_path, filename) )
+    outputPath = '"' .. LrPathUtils.child(exported_path, filename) .. '"'
     command_string = "-write " .. outputPath
     FLEImageMagickAPI.add_command_string(labelling_context.imageMagickHandle, command_string)
 
@@ -387,10 +388,11 @@ end
 -- Get label size
 
 function get_label_size(text, font, size, line_width)
+    local escaped_text = text:gsub('\n', [[\n]])--([[\n]], '\n')
     command_string = '-font ' .. font .. 
                      ' -pointsize ' .. size .. 
                      ' -strokewidth ' .. line_width .. 
-                     ' label:' .. '"' .. text .. '"' ..
+                     ' label:' .. '"' .. escaped_text .. '"' ..
                      ' -format "%wx%h" info:'
     success, output = FLEImageMagickAPI.execute_convert_get_output(labelling_context.imageMagickHandle, command_string)
     if success then
