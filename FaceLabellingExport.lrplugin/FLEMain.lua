@@ -38,6 +38,7 @@ Inspiration gleaned from:
 local LrDate            = import("LrDate")
 local LrFileUtils       = import("LrFileUtils")
 local LrPathUtils       = import("LrPathUtils")
+local LrPrefs           = import("LrPrefs")
 local LrTasks           = import("LrTasks")
 
 --============================================================================--
@@ -50,7 +51,10 @@ FLEImageMagickAPI       = require("FLEImageMagickAPI.lua")
 -- Local variables
 local FLEMain = {}
 
+-- exportParams are configured through the plug-in Export UI
 local local_exportParams = {}
+-- prefs are direct from InitPlugin, and not configured through export UI
+local prefs = LrPrefs.prefsForPlugin()
 
 -- initialised later in init function
 local label_config = {}
@@ -129,9 +133,11 @@ function FLEMain.renderPhoto(photo, pathOrMessage)
     command_string = '# Input file'
     FLEImageMagickAPI.add_command_string(labelling_context.imageMagickHandle, command_string)
     command_string = exported_file
-    if labelling_context.obfuscate then
-        --command_string = command_string .. ' -threshold -1 -alpha off'
+    if local_exportParams.obfuscate_image then -- fade image
         command_string = command_string .. ' -fill white -colorize 95%'
+    end
+    if local_exportParams.remove_exif then -- remove exif
+        command_string = command_string .. ' -strip'
     end
     FLEImageMagickAPI.add_command_string(labelling_context.imageMagickHandle, command_string)
 
@@ -140,8 +146,8 @@ function FLEMain.renderPhoto(photo, pathOrMessage)
         command_string = '# Person face outlines'
         FLEImageMagickAPI.add_command_string(labelling_context.imageMagickHandle, command_string)
         command_string = string.format('-strokewidth %d -stroke %s -fill "rgba( 255, 255, 255, 0.0)"',
-                                        photo_config.face_outline_line_width,
-                                        photo_config.face_outline_colour)
+                                        prefs.face_outline_line_width,
+                                        prefs.face_outline_colour)
         FLEImageMagickAPI.add_command_string(labelling_context.imageMagickHandle, command_string)
         for i, person in pairs(people) do -- is this robust for zero length?
             command_string = string.format('-draw "rectangle %d,%d %d,%d"',
@@ -155,8 +161,8 @@ function FLEMain.renderPhoto(photo, pathOrMessage)
         command_string = '# Label box outlines'
         FLEImageMagickAPI.add_command_string(labelling_context.imageMagickHandle, command_string)
         command_string = string.format('-strokewidth %d -stroke %s -fill "rgba( 255, 255, 255, 0.0)"',
-                                        photo_config.label_outline_line_width,
-                                        photo_config.label_outline_colour)
+                                        prefs.label_outline_line_width,
+                                        prefs.label_outline_colour)
         FLEImageMagickAPI.add_command_string(labelling_context.imageMagickHandle, command_string)
         for i, label in pairs(labels) do -- is this robust for zero length?
             command_string = string.format('-draw "rectangle %d,%d %d,%d"',
@@ -172,10 +178,10 @@ function FLEMain.renderPhoto(photo, pathOrMessage)
         for i, label in pairs(labels) do -- is this robust for zero length?
             logger.writeLog(3, "Face label: " .. label.text)
             command_string = string.format('-font %s -pointsize %d -stroke %s -strokewidth %d -fill white -undercolor "#00000080"',
-                                           label_config.font_type,
+                                           prefs.font_type,
                                            label.font_size, 
-                                           label_config.font_colour,
-                                           label_config.font_line_width)
+                                           prefs.font_colour,
+                                           prefs.font_line_width)
             FLEImageMagickAPI.add_command_string(labelling_context.imageMagickHandle, command_string)
             --text = label.text
             text = text_line_wrap(label.text, label.num_rows)
@@ -208,33 +214,14 @@ end
 -- Initialisation
 
 function init()
-    --labelling_context = {} -- now contains session data, so should not zap on each photo
     labelling_context.people = nil
     labelling_context.labels = nil
     labelling_context.photo_dimensions = nil
-    labelling_context.obfuscate = false
     
     label_config.font_size = 40 -- initial value
-    label_config.font_type = 'Courier' -- initial value
-    label_config.font_colour = 'white'
-    label_config.font_line_width = 1
-    label_config.default_position = 'below'
-    label_config.default_align = 'center'
-    label_config.default_num_rows = 3
     label_config.format_experiment_list = {'position', 'num_rows', 'revert_to_default_position'}
     label_config.positions_experiment_list = {'below', 'above', 'left', 'right'}
     label_config.num_rows_experiment_list = {1,2,3,4,5}
-    
-    photo_config.image_margin = 5 -- initial value
-    photo_config.label_outline_colour = 'red'
-    photo_config.label_outline_line_width = 1
-    photo_config.face_outline_colour = 'blue'
-    photo_config.face_outline_line_width = 2
-    photo_config.image_width_to_region_ratio_small = 20 -- to determine label text size for small images
-    photo_config.image_width_to_region_ratio_large = 5 -- and larger images
-    photo_config.label_width_to_region_ratio_small = 2 -- ratio of label width to region width for small regions
-    photo_config.label_width_to_region_ratio_large = 0.5 -- and for larger regions
-    photo_config.test_label = 'Test Label' -- used to determine label font size
 end
 
 --------------------------------------------------------------------------------
@@ -252,7 +239,9 @@ function get_person(photoDimension, region)
     logger.writeLog(4, string.format("Name '%s', x:%d y:%d, w:%d, h:%d", 
         name, x, y, w, h))
     
-    if labelling_context.obfuscate then name = randomise_string(name) end
+    if local_exportParams.obfuscate_labels then
+        name = randomise_string(name)
+    end
     
     person = {}
     person.x = x
@@ -281,18 +270,18 @@ end
 function keep_within_image(x, y, w, h)
     photoDimension = labelling_context.photo_dimensions
     
-    if x < photo_config.image_margin then -- ensure not negative
-        x = photo_config.image_margin
+    if x < prefs.image_margin then -- ensure not negative
+        x = prefs.image_margin
     end
-    if y < photo_config.image_margin then
-        y = photo_config.image_margin
+    if y < prefs.image_margin then
+        y = prefs.image_margin
     end
     
-    if (x + w) > (photoDimension.width - photo_config.image_margin) then -- ensure not exceeding image dimensions
-        x = photoDimension.width - photo_config.image_margin - w
+    if (x + w) > (photoDimension.width - prefs.image_margin) then -- ensure not exceeding image dimensions
+        x = photoDimension.width - prefs.image_margin - w
     end
-    if (y + h) > (photoDimension.height - photo_config.image_margin) then
-        y = photoDimension.height - photo_config.image_margin - h
+    if (y + h) > (photoDimension.height - prefs.image_margin) then
+        y = photoDimension.height - prefs.image_margin - h
     end
     
     return x,y
@@ -306,9 +295,9 @@ function get_label_position_and_size(label)
     text = text_line_wrap(label.text, label.num_rows)
     
     label_w, label_h = get_label_size(text, 
-                                      label_config.font_type,
+                                      prefs.font_type,
                                       label.font_size,
-                                      label_config.font_line_width)
+                                      prefs.font_line_width)
                                       
     if label.position == 'below' then
         x = person.x + math.floor(person.w / 2) - math.floor(label_w / 2)
@@ -365,9 +354,9 @@ function get_labels()
             label.person = person
             logger.writeLog(3, "- set_label_position: " .. label.text)
             label = set_label_position(label, 
-                                       label_config.default_position,
-                                       label_config.default_num_rows,
-                                       label_config.default_align,
+                                       prefs.default_position,
+                                       prefs.default_num_rows,
+                                       prefs.default_align,
                                        label_config.font_size)
             labels[i] = label
         end
@@ -421,33 +410,33 @@ function determine_label_font_size()
     average_region_size = get_average_region_size(people)
     font_size = label_config.font_size
     if average_region_size and average_region_size > 0 then
-        if average_region_size < (photoDimension.width / photo_config.image_width_to_region_ratio_small) then
-            target_width = average_region_size * photo_config.label_width_to_region_ratio_small
-        elseif average_region_size > (photoDimension.width / photo_config.image_width_to_region_ratio_large) then
-            target_width = average_region_size * photo_config.label_width_to_region_ratio_large
+        if average_region_size < (photoDimension.width / prefs.image_width_to_region_ratio_small) then
+            target_width = average_region_size * prefs.label_width_to_region_ratio_small
+        elseif average_region_size > (photoDimension.width / prefs.image_width_to_region_ratio_large) then
+            target_width = average_region_size * prefs.label_width_to_region_ratio_large
         else
             target_width = average_region_size
         end
         
-        test_label_w, test_label_h = get_label_size(photo_config.test_label, 
-                                                    label_config.font_type,
+        test_label_w, test_label_h = get_label_size(prefs.test_label, 
+                                                    prefs.font_type,
                                                     font_size,
-                                                    label_config.font_line_width)
+                                                    prefs.font_line_width)
         if test_label_w < target_width then -- smaller than target
             while (test_label_w < target_width) do
                 font_size = font_size + 2
-                test_label_w, test_label_h = get_label_size(photo_config.test_label, 
-                                                            label_config.font_type,
+                test_label_w, test_label_h = get_label_size(prefs.test_label, 
+                                                            prefs.font_type,
                                                             font_size,
-                                                            label_config.font_line_width)
+                                                            prefs.font_line_width)
             end
         else -- larger than target
             while (test_label_w > target_width) do
                 font_size = font_size - 2
-                test_label_w, test_label_h = get_label_size(photo_config.test_label, 
-                                                            label_config.font_type,
+                test_label_w, test_label_h = get_label_size(prefs.test_label, 
+                                                            prefs.font_type,
                                                             font_size,
-                                                            label_config.font_line_width)
+                                                            prefs.font_line_width)
             end
         end
     end
@@ -537,7 +526,7 @@ function optimise_single_label(label, experiment_list)
         
         if experiment == 'num_rows' then options_list = label_config.num_rows_experiment_list
         elseif experiment == 'position' then options_list = label_config.positions_experiment_list
-        elseif experiment == 'revert_to_default_position' then options_list = {label_config.default_position}
+        elseif experiment == 'revert_to_default_position' then options_list = {prefs.default_position}
         else
             logger.writeLog(0, "optimise_single_label - unknown experiment type: " .. experiment)
         end
@@ -555,8 +544,8 @@ function optimise_single_label(label, experiment_list)
                 if experiment == 'num_rows' then try_num_rows = option
                 elseif experiment == 'position' then try_position = option
                 elseif experiment == 'revert_to_default_position' then
-                    try_position = label_config.default_position
-                    try_num_rows = label_config.default_num_rows
+                    try_position = prefs.default_position
+                    try_num_rows = prefs.default_num_rows
                 else
                     logger.writeLog(0, "optimise_single_label - unknown experiment type: " .. experiment)
                 end

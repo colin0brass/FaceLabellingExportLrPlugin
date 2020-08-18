@@ -122,14 +122,21 @@ end
 function FLEExportDialogs.startDialog( propertyTable )
     local prefs = LrPrefs.prefsForPlugin()
     
+    -- Plug-in Manager configuration
     -- copy preferences from configuration in Lightroom Plug-in Manager
+    -- Helper apps
     propertyTable.exifToolApp       = prefs.exifToolApp
     propertyTable.imageMagickApp    = prefs.imageMagickApp
     propertyTable.imageConvertApp   = prefs.imageConvertApp
-
+    
+    -- Export preferences
     propertyTable.draw_label_text   = prefs.draw_label_text
     propertyTable.draw_face_outlines= prefs.draw_face_outlines
     propertyTable.draw_label_boxes  = prefs.draw_label_boxes
+    -- Obfuscation preferences
+    propertyTable.obfuscate_labels   = prefs.obfuscate_labels
+    propertyTable.obfuscate_image    = prefs.obfuscate_image
+    propertyTable.remove_exif        = prefs.remove_exif
 
     propertyTable:addObserver( 'LR_export_destinationType', updateExportStatus )
     propertyTable:addObserver( 'LR_export_useSubfolder', updateExportStatus )
@@ -147,10 +154,15 @@ end
 function FLEExportDialogs.endDialog( propertyTable )
     local prefs = LrPrefs.prefsForPlugin()
     
+    -- Export preferences
     -- copy any updated preferences back for persistent storage
-    prefs.draw_label_text   = propertyTable.draw_label_text
-    prefs.draw_face_outlines= propertyTable.draw_face_outlines
-    prefs.draw_label_boxes  = propertyTable.draw_label_boxes
+    prefs.draw_label_text       = propertyTable.draw_label_text
+    prefs.draw_face_outlines    = propertyTable.draw_face_outlines
+    prefs.draw_label_boxes      = propertyTable.draw_label_boxes
+    -- Obfuscation preferences
+    prefs.obfuscate_labels      = propertyTable.obfuscate_labels
+    prefs.obfuscate_image       = propertyTable.obfuscate_image
+    prefs.remove_exif           = propertyTable.remove_exif
 end
 
 --------------------------------------------------------------------------------
@@ -236,6 +248,24 @@ function FLEExportDialogs.sectionsForBottomOfDialog( f, propertyTable )
                 f:checkbox {
                         title = LOC "$$$/FaceLabelling/ExportDialog/drawLabelBoxes=Draw label outlines:",
                         value = bind 'draw_label_boxes',
+                },
+            }, -- row
+            
+            f:row { -- obfuscation options
+                f:checkbox {
+                        title = LOC "$$$/FaceLabelling/ExportDialog/obfuscate_labels=Obfuscate labels:",
+                        tooltip = "Randomise characters and digits in labels",
+                        value = bind 'obfuscate_labels',
+                },
+                f:checkbox {
+                        title = LOC "$$$/FaceLabelling/ExportDialog/obfuscate_image=Obfuscate image:",
+                        tooltip = "Fade output image",
+                        value = bind 'obfuscate_image',
+                },
+                f:checkbox {
+                        title = LOC "$$$/FaceLabelling/ExportDialog/remove_exif=Remove exif:",
+                        tooltip = "Remove exif metadata",
+                        value = bind 'remove_exif',
                 },
             }, -- row
             

@@ -38,14 +38,19 @@ Inspiration gleaned from:
 local LrDialogs         = import("LrDialogs")
 local LrFileUtils       = import("LrFileUtils")
 local LrPathUtils       = import("LrPathUtils")
+local LrPrefs           = import("LrPrefs")
 local LrTasks           = import("LrTasks")
 
 --============================================================================--
 -- Local imports
 require "FLEExportDialogs.lua"
 
+-- persistent plug-in preferences
+local prefs = LrPrefs.prefsForPlugin()
+
+-- Log export session to file for diagnostics & debug
 logger = require("Logger.lua")
-logger.init("FaceLabellingExport", 2) -- arguments: log filename, log_level threshold (lowest is most significant)
+logger.init(prefs.logger_filename, prefs.logger_verbosity) -- arguments: log filename, log_level threshold (lowest is most significant)
 
 FLEMain = require "FLEMain.lua"
 

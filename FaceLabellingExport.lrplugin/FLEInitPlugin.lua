@@ -40,6 +40,7 @@ local LrPrefs            = import("LrPrefs")
 
 --============================================================================--
 -- Local imports
+require "Utils.lua"
 
 --============================================================================--
 -- Local variables
@@ -63,32 +64,46 @@ local FLEUrl = "https://github.com/colin0brass/FaceLabellingExportLrPlugin"
 --============================================================================--
 -- Initialise preferences
 
+-- Log export session to file for diagnostics & debug
+-- Generally saved to Documents/LrClassicLogs
+prefs.logger_filename    = "FaceLabellingExport"
+prefs.logger_verbosity   = 2 -- 0 is nothing except errors; 2 is normally sensible; 5 for everything
+
 -- Plug-in web URL
 prefs.FLEUrl = FLEUrl
 
--- exiftool app
-if not prefs.exifToolApp then
-    prefs.exifToolApp = default_exiftool_app
-end
+-- Helper apps
+prefs.exifToolApp        = ifnil(prefs.exifToolApp,     default_exiftool_app)
+prefs.imageMagickApp     = ifnil(prefs.imageMagickApp,  default_imagemagick_app)
+prefs.imageConvertApp    = ifnil(prefs.imageConvertApp, default_image_convert_app)
 
---ImageMagick main program
-if not prefs.imageMagickApp then
-    prefs.imageMagickApp = default_imagemagick_app
-end
+-- Export preferences to copy into ExportParams
+prefs.draw_label_text    = ifnil(prefs.draw_label_text,     true )
+prefs.draw_face_outlines = ifnil(prefs.draw_face_outlines,  false)
+prefs.draw_label_boxes   = ifnil(prefs.draw_label_boxes,    false)
+-- Obfuscation preferences to copy into ExportParams
+prefs.obfuscate_labels   = ifnil(prefs.obfuscate_labels,    false)
+prefs.obfuscate_image    = ifnil(prefs.obfuscate_image,     false)
+prefs.remove_exif        = ifnil(prefs.remove_exif,         false)
 
---ImageMagick convert app
-if not prefs.imageConvertApp then
-    prefs.imageConvertApp = default_image_convert_app
-end
-
-if not prefs.draw_label_text then
-    prefs.draw_label_text = true
-end
-
-if not prefs.draw_face_outlines then
-    prefs.draw_face_outlines = false
-end
-
-if not draw_label_boxes then
-    prefs.draw_label_boxes = false
-end
+-- Preferences; not currently copied into ExportParams since not edited through UI
+-- Label preferences; not yet configurable through UI
+prefs.font_type                 = 'Courier'
+prefs.font_colour               = 'white'
+prefs.font_line_width           = 1
+prefs.default_position          = 'below'
+prefs.default_num_rows          = 3
+prefs.default_align             = 'center'
+-- Line drawing preferences; not yet configurable through UI
+prefs.label_outline_colour      = 'red'
+prefs.label_outline_line_width  = 1
+prefs.face_outline_colour       = 'blue'
+prefs.face_outline_line_width   = 2
+-- Image handling preferences; not yet configurable through UI
+prefs.image_margin              = 5 -- don't let labels go right to the edge of the image
+-- Label size preferences; not yet configurable through UI
+prefs.image_width_to_region_ratio_small = 20 -- to determine label text size for small images
+prefs.image_width_to_region_ratio_large = 5 -- and larger images
+prefs.label_width_to_region_ratio_small = 2 -- ratio of label width to region width for small regions
+prefs.label_width_to_region_ratio_large = 0.5 -- and for larger regions
+prefs.test_label                        = 'Test Label' -- used to determine label font size
