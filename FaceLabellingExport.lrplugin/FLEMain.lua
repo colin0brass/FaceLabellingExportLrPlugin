@@ -129,7 +129,7 @@ function FLEMain.renderPhoto(photo, pathOrMessage)
     logger.writeLog(3, "Create ImageMagick script command file for image labelling")
 
     -- input file
-    exported_file = path_quote_selection_for_platform(pathOrMessage)
+    exported_file = '"' .. pathOrMessage .. '"'
     command_string = '# Input file'
     FLEImageMagickAPI.add_command_string(labelling_context.imageMagickHandle, command_string)
     command_string = exported_file
@@ -186,8 +186,6 @@ function FLEMain.renderPhoto(photo, pathOrMessage)
             --text = label.text
             text = text_line_wrap(label.text, label.num_rows)
             gravity = translate_align_to_gravity(label.text_align)
-            --command_string = string.format('-background none -size %dx%d -gravity %s caption:"%s"',
-            --                               label.w, label.h, gravity, text)
             command_string = string.format('-background none -size %dx -gravity %s caption:"%s"',
                                            label.w, gravity, text)
             FLEImageMagickAPI.add_command_string(labelling_context.imageMagickHandle, command_string)
@@ -200,7 +198,6 @@ function FLEMain.renderPhoto(photo, pathOrMessage)
     -- output file
     local filename = LrPathUtils.leafName( pathOrMessage )
     exported_path = LrPathUtils.parent(pathOrMessage)
-    --outputPath = path_quote_selection_for_platform( LrPathUtils.child(exported_path, filename) )
     outputPath = '"' .. LrPathUtils.child(exported_path, filename) .. '"'
     command_string = "-write " .. outputPath
     FLEImageMagickAPI.add_command_string(labelling_context.imageMagickHandle, command_string)
