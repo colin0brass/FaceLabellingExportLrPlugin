@@ -40,6 +40,7 @@ local LrFileUtils       = import("LrFileUtils")
 local LrHttp            = import("LrHttp")
 local LrPrefs           = import("LrPrefs")
 local LrView            = import("LrView")
+local LrShell           = import("LrShell")
 
 --============================================================================--
 -- Local imports
@@ -83,7 +84,7 @@ local function updatePluginStatus( propertyTable )
         end
         
     until true -- only go through once
-
+    
     if message then
         propertyTable.message = message
         propertyTable.hasError = true
@@ -97,6 +98,7 @@ local function updatePluginStatus( propertyTable )
         propertyTable.LR_cantExportBecause = nil
         propertyTable.synopsis = "Settings configured."
     end
+    
 end
 
 --------------------------------------------------------------------------------
@@ -109,10 +111,14 @@ function FLEInfoProvider.startDialog( propertyTable )
     propertyTable.exifToolApp       = prefs.exifToolApp
     propertyTable.imageMagickApp    = prefs.imageMagickApp
     propertyTable.imageConvertApp   = prefs.imageConvertApp
+    propertyTable.logFilePath       = logFilePath
+    propertyTable.logger_verbosity  = prefs.logger_verbosity
     
-    propertyTable:addObserver( 'exifToolApp', updatePluginStatus )
-    propertyTable:addObserver( 'imageMagickApp', updatePluginStatus )
+    propertyTable:addObserver( 'exifToolApp',     updatePluginStatus )
+    propertyTable:addObserver( 'imageMagickApp',  updatePluginStatus )
     propertyTable:addObserver( 'imageConvertApp', updatePluginStatus )
+    propertyTable:addObserver( 'logFilePath',     updatePluginStatus )
+    propertyTable:addObserver( 'logger_verbosity',updatePluginStatus )
     
     updatePluginStatus( propertyTable )
 end
@@ -126,6 +132,7 @@ function FLEInfoProvider.endDialog( propertyTable )
     prefs.exifToolApp       = propertyTable.exifToolApp
     prefs.imageMagickApp    = propertyTable.imageMagickApp
     prefs.imageConvertApp   = propertyTable.imageConvertApp
+    prefs.logger_verbosity  = propertyTable.logger_verbosity
 end
 
 --------------------------------------------------------------------------------
@@ -177,6 +184,13 @@ function helperAppConfigView(f, propertyTable)
                 fill_horizontal = 0,
                 action = function() LrHttp.openUrlInBrowser(exiftool_url) end,
             },
+            f:push_button { -- Show in file browser
+                title = "Show file",
+                tooltip = LOC "Show file",
+                alignment = 'center',
+                fill_horizontal = 0,
+                action = function() LrShell.revealInShell(propertyTable.exifToolApp) end,
+            },
         }, -- row
         
         f:row { -- ImageMagick main program
@@ -216,6 +230,13 @@ function helperAppConfigView(f, propertyTable)
                 alignment = 'center',
                 fill_horizontal = 0,
                 action = function() LrHttp.openUrlInBrowser(imagemagick_url) end,
+            },
+            f:push_button { -- Show in file browser
+                title = "Show file",
+                tooltip = LOC "Show file",
+                alignment = 'center',
+                fill_horizontal = 0,
+                action = function() LrShell.revealInShell(propertyTable.imageMagickApp) end,
             },
         }, -- row
         
@@ -257,6 +278,13 @@ function helperAppConfigView(f, propertyTable)
                 fill_horizontal = 0,
                 action = function() LrHttp.openUrlInBrowser(imagemagick_url) end,
             },
+            f:push_button { -- Show in file browser
+                title = "Show file",
+                tooltip = LOC "Show file",
+                alignment = 'center',
+                fill_horizontal = 0,
+                action = function() LrShell.revealInShell(propertyTable.imageConvertApp) end,
+            },
         }, -- row
         
     } -- f:group_box
@@ -274,6 +302,49 @@ function configStatusView(f, propertyTable)
     result = f:group_box {
         title = "Config Status",
         fill_horizontal = 1,
+        
+        f: row { -- Log file information
+            f:static_text {
+                title = LOC "$$$/FaceLabelling/PluginDialog/LogFile=Log File:",
+                alignment = 'left',
+                width = share 'labelWidth'
+            },
+            
+            f:static_text {
+                title = bind 'logFilePath',
+                height_in_lines = 2,
+                width = share 'valueFieldWidth',
+            },
+        }, -- row
+            
+        f: row { -- Log file information
+             f:static_text { -- spacing
+                 width = share 'labelWidth',
+             },
+            f:push_button { -- Show in file browser
+                title = "Show file",
+                tooltip = LOC "Show file",
+                alignment = 'center',
+                fill_horizontal = 0,
+                action = function() LrShell.revealInShell(logFilePath) end,
+            },
+            f:group_box {
+                title = LOC "$$$/FaceLabelling/PluginDialog/LogLevel=Log level:",
+                f:popup_menu {
+                    tooltip = LOC "$$$/FaceLabelling/PluginDialog/LogLevelTip=The level of log details",
+                    items   = {
+                        { title	= LOC "Nothing",    value = 0 },
+                        { title	= LOC "Errors",     value = 1 },
+                        { title	= LOC "Normal",     value = 2 },
+                        { title	= LOC "Trace",      value = 3 },
+                        { title	= LOC "Debug",      value = 4 },
+                        { title	= LOC "X-Debug",    value = 5 },
+                    },
+                    fill_horizontal = 0,
+                    value = bind 'logger_verbosity',
+                },
+            },
+        },
         
         f: row {
             f:static_text {

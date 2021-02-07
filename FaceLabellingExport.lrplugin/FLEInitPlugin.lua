@@ -67,7 +67,7 @@ local FLEUrl = "https://github.com/colin0brass/FaceLabellingExportLrPlugin"
 -- Log export session to file for diagnostics & debug
 -- Generally saved to Documents/LrClassicLogs
 prefs.logger_filename    = "FaceLabellingExport"
-prefs.logger_verbosity   = 2 -- 0 is nothing except errors; 2 is normally sensible; 5 for everything
+prefs.logger_verbosity   = ifnil(prefs.logger_verbosity,   2 ) -- 0 is nothing except errors; 2 is normally sensible; 5 for everything
 
 -- Plug-in web URL
 prefs.FLEUrl = FLEUrl
@@ -78,6 +78,7 @@ prefs.imageMagickApp     = ifnil(prefs.imageMagickApp,  default_imagemagick_app)
 prefs.imageConvertApp    = ifnil(prefs.imageConvertApp, default_image_convert_app)
 
 -- Export preferences to copy into ExportParams
+prefs.label_image        = ifnil(prefs.label_image,         true )
 prefs.draw_label_text    = ifnil(prefs.draw_label_text,     true )
 prefs.draw_face_outlines = ifnil(prefs.draw_face_outlines,  false)
 prefs.draw_label_boxes   = ifnil(prefs.draw_label_boxes,    false)
@@ -85,6 +86,10 @@ prefs.draw_label_boxes   = ifnil(prefs.draw_label_boxes,    false)
 prefs.obfuscate_labels   = ifnil(prefs.obfuscate_labels,    false)
 prefs.obfuscate_image    = ifnil(prefs.obfuscate_image,     false)
 prefs.remove_exif        = ifnil(prefs.remove_exif,         false)
+-- Export thumbnails
+prefs.export_thumbnails  = ifnil(prefs.export_thumbnails,   false)
+prefs.thumbnails_filename_option = ifnil(prefs.thumbnails_filename_option, 'RegionNumber')
+prefs.thumbnails_folder_option = ifnil(prefs.thumbnails_folder_option, 'ThumbnailsThumbFolder')
 
 -- Preferences; not currently copied into ExportParams since not edited through UI
 -- Label preferences; not yet configurable through UI

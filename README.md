@@ -97,7 +97,7 @@ and finally click "Export"
 # Limitations - Known & Likely
 * Mainly tested on Mac, with a quick successful test on Windows, but I fully expect there to be robustness/portability issues
 * Only tested with jpeg images, therefore other file types are likely not to work
-* Not specifically tested with rotated images, therefore behaviour is probably wrong
+* Limited testing with rotated and cropped images, so might be limitations
 * Not tested with a wide range of images, types and exif labelling, therefore probably limitations
 
 ## Potential future improvements
@@ -112,8 +112,8 @@ I have used the following for my (limited) testing so far:
 
 ### Mac
 * iMac (2017), Intel Core i5; 16GB RAM
-* MacOS Catalina, v10.15.6
-* Lightroom Classic v9.4
+* MacOS Catalina v10.15.6; Big Sur v11.1, v11.2
+* Lightroom Classic v9.4; v10.1; v10.1.1
 * ImageMagick 7.0.10-25
 * ExifTool 12.01
 

@@ -50,6 +50,7 @@ json = require("json.lua")
 local FLEExifToolAPI = {}
 
 local tmpdir = LrPathUtils.getStandardFilePath("temp")
+local exiftool_config_file = LrPathUtils.child(_PLUGIN.path, "get_regions.config")
 
 --============================================================================--
 -- Functions
@@ -81,21 +82,27 @@ function FLEExifToolAPI.getFaceRegionsList(handle, photoFilename)
     local personTags = {} -- initial value
     local photoSize = {} -- initial value
     
-    local exif_command = "-struct -j -ImageWidth -ImageHeight -XMP-mwg-rs:RegionInfo"
+    -- Define which fields to retrieve from EXIF using ExifTool and custom config (script) file
+    local exif_command = '-struct -j -RegionsAbsoluteNotFocus'
+    if logger.get_log_level() >= 5 then -- get more information to help with debug
+        exif_command = exif_command .. ' -ImageWidth -ImageHeight -RegionsCentred -AlreadyApplied -Orientation'
+    end
+    
 	success = _exifTool_send_command(handle, exif_command)
 	success = success and _exifTool_send_filename(handle, photoFilename)
 	
 	if not success then
-		logger.writeLog(2, string.format("FLEExifToolAPI.getFaceRegionsList send command failed: %s\n",
+		logger.writeLog(2, string.format("FLEExifToolAPI.getFaceRegionsList send command failed: %s",
 							photoFilename))
 	else  
         success, queryResults = _exifTool_execute_commands(handle) 
         if not success or not queryResults then
-            logger.writeLog(2, "FLEExifToolAPI.getFaceRegionsList: exiftool execution failed\n")
+            logger.writeLog(2, "FLEExifToolAPI.getFaceRegionsList: exiftool execution failed")
         else
+            logger.writeLog(5, queryResults)
             local results = json.parse(queryResults)
             if not results or #results < 1 then
-                logger.writeLog(2, "FLEExifToolAPI.getFaceRegionsList: JSON decode of results failed\n")
+                logger.writeLog(2, "FLEExifToolAPI.getFaceRegionsList: JSON decode of results failed")
                 success = false
             else
                 logger.writeTable(5, results) -- write to log for debug
@@ -114,38 +121,44 @@ function _extract_face_regions(results)
     local personTags = {}
     local photoSize = {}
     
-    photoSize.width  = results.ImageWidth
-    photoSize.height = results.ImageHeight
-
-    if results.RegionInfo and results.RegionInfo.RegionList and #results.RegionInfo.RegionList > 0 then 
-        local regionList = results.RegionInfo.RegionList 
+    logger.writeLog(3, "_extract_face_regions")
+    if results.RegionsAbsoluteNotFocus then
+        local regionsInfo = results.RegionsAbsoluteNotFocus
+        photoSize.width  = regionsInfo.ImageInfo.ImageWidth
+        photoSize.height = regionsInfo.ImageInfo.ImageHeight
+        photoSize.orient = regionsInfo.ImageInfo.Orientation
+        
+        if regionsInfo.RegionList and #regionsInfo.RegionList > 0 then 
+            local regionList = regionsInfo.RegionList
     
-        face_num = 0
-        for i = 1, #regionList do
-            local region = regionList[i]
-            if (region.Type == 'Face') or (not region.Type) then
-                local personTag = {}
-                face_num = face_num + 1
-                
-                personTag.xCentre 	= tonumber(region.Area.X)
-                personTag.yCentre 	= tonumber(region.Area.Y)
-                personTag.w 		= tonumber(region.Area.W)
-                personTag.h 		= tonumber(region.Area.H)
-                personTag.name 		= region.Name
-                
-                personTags[face_num] = personTag 
-                
-                logger.writeLog(4, string.format("_extract_face_regions: Area %d: '%s': x:%f y:%f, w:%f, h:%f\n",
-                                                face_num,
-                                                personTags[face_num].name,
-                                                personTags[face_num].xCentre,
-                                                personTags[face_num].yCentre,
-                                                personTags[face_num].w,
-                                                personTags[face_num].h
-                                            ))
-            end -- if not region.Type ...
-        end -- for i = 1, #regionList
-    end -- if results.RegionInfo ...
+            face_num = 0
+            for i = 1, #regionList do
+                logger.writeLog(3, "_extract_face_regions: num " .. i)
+                local region = regionList[i]
+                if (region.Type == 'Face') or (not region.Type) then
+                    local personTag = {}
+                    face_num = face_num + 1
+                    
+                    personTag.x 	    = tonumber(region.Area.X)
+                    personTag.y 	    = tonumber(region.Area.Y)
+                    personTag.w 		= tonumber(region.Area.W)
+                    personTag.h 		= tonumber(region.Area.H)
+                    personTag.name 		= region.Name
+    
+                    personTags[face_num] = personTag 
+                    
+                    logger.writeLog(4, string.format("_extract_face_regions: Area %d: '%s': x:%d y:%d, w:%d, h:%d",
+                                                    face_num,
+                                                    personTags[face_num].name,
+                                                    personTags[face_num].x,
+                                                    personTags[face_num].y,
+                                                    personTags[face_num].w,
+                                                    personTags[face_num].h
+                                                ))
+                end -- if not region.Type ...
+            end -- for i = 1, #regionList
+        end -- if regionsInfo.RegionList ...
+    end -- if results.RegionsAbsoluteNotFocus
         
     return personTags, photoSize
 end
@@ -161,17 +174,18 @@ function _openExifTool(exportParams)
 	
 	-- create unique CommandFile and LogFile
     local dateStr = tostring(LrDate.currentTime())
-	handle.exiftool_command_file = LrPathUtils.child(tmpdir, "exiftool_commands_" .. 
-	                                                 dateStr .. ".txt")
-	handle.exiftool_log_file = LrPathUtils.replaceExtension(handle.exiftool_command_file, "log")
+	handle.exiftool_command_file   = LrPathUtils.child(tmpdir, "exiftool_commands_" .. 
+	                                                   dateStr .. ".txt")
+	handle.exiftool_log_file       = LrPathUtils.replaceExtension(handle.exiftool_command_file, "log")
 	handle.exiftool_error_log_file = LrPathUtils.replaceExtension(handle.exiftool_command_file, "error.log")
 
     handle.cmd_num = 0
 
-    local command_file = path_quote_selection_for_platform(handle.exiftool_command_file)
-    local log_file = path_quote_selection_for_platform(handle.exiftool_log_file)
+    local config_file    = path_quote_selection_for_platform(exiftool_config_file)
+    local command_file   = path_quote_selection_for_platform(handle.exiftool_command_file)
+    local log_file       = path_quote_selection_for_platform(handle.exiftool_log_file)
     local error_log_file = path_quote_selection_for_platform(handle.exiftool_error_log_file)
-    local exif_args = ' -common_args -charset filename=UTF8 -overwrite_original -fast2 -m '
+    local exif_args      = ' -common_args -charset filename=UTF8 -overwrite_original -fast2 -m '
     
 	-- open and truncate commands file
 	local file = io.open(handle.exiftool_command_file, "w")
@@ -187,17 +201,14 @@ function _openExifTool(exportParams)
     
         LrTasks.startAsyncTask ( function()
                 local command = exe ..
+                                ' -config ' .. config_file ..
                                 ' -stay_open True -@ ' .. command_file ..
                                 exif_args .. ' > ' .. log_file .. ' 2> ' .. error_log_file
 
-                --if WIN_ENV then
-                --    command = '"' .. command .. '"'
-                --end
-                
-                logger.writeLog(3, string.format("exiftool starting: (%s)\n", command))
+                logger.writeLog(3, string.format("exiftool starting: (%s)", command))
                 local exitStatus = LrTasks.execute(command)
                 if exitStatus > 0 then
-                    logger.writeLog(1, string.format("exiftool error: %s\n", tostring(exitStatus)))
+                    logger.writeLog(1, string.format("exiftool error: %s", tostring(exitStatus)))
                     success = false
                 end
             
@@ -217,7 +228,7 @@ function _closeExifTool(handle)
 	if not handle then
 	    success = false
     else
-		logger.writeLog(4, "FLEExifToolAPI: closing exiftool session\n")
+		logger.writeLog(4, "FLEExifToolAPI: closing exiftool session")
 		success = _exifTool_send_command(handle, "-stay_open False")
 	end
 	
@@ -243,7 +254,7 @@ function _exifTool_insert_command_lines(handle, command_lines)
     if not handle then
         success = false
     else
-        logger.writeLog(4, "_exifTool_insert_command_lines:\n" .. command_lines)
+        logger.writeLog(4, "_exifTool_insert_command_lines:" .. command_lines)
         local command_file = io.open(handle.exiftool_command_file, "a")
         if not command_file then
             success = false

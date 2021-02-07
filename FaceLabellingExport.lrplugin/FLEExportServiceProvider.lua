@@ -65,6 +65,9 @@ FLEMain = require "FLEMain.lua"
 
 function processRenderedPhotos( functionContext, exportContext )
 
+    -- Update from latest config
+    logger.set_log_level(prefs.logger_verbosity)
+
     logger.writeLog(2, "processRenderedPhotos")
     
     -- Make a local reference to the export parameters.
@@ -94,11 +97,14 @@ function processRenderedPhotos( functionContext, exportContext )
         if progressScope:isCanceled() then break end    
         
         if success then
-            local photo = rendition.photo
+            logger.writeLog(2,  'Exporting to: ' .. "'" .. pathOrMessage .. "'" )
+
+            local srcPhoto = rendition.photo
+            local srcPath  = srcPhoto:getRawMetadata("path")
+            local renderedPath = pathOrMessage
             
             -- Render photo with face labels
-            logger.writeLog(2,  'Exporting: ' .. "'" .. pathOrMessage .. "'" )
-            success, failures = FLEMain.renderPhoto(photo, pathOrMessage)
+            success, failures = FLEMain.renderPhoto(srcPath, renderedPath)
 
         end -- if success
     end -- for _, rendition
@@ -123,8 +129,8 @@ end
 -- Return export service table
 
 return {
-    hideSections = { 'fileNaming', 'fileSettings', 'imageSettings', 
-        'outputSharpening', 'metadata', 'video', 'watermarking' },
+    hideSections = { -- 'fileNaming', 'metadata', 'imageSettings',  'fileSettings', 
+        'outputSharpening', 'video', 'watermarking' },
         
     --allowFileFormats = nil, -- nil equates to all available formats
     --allowColorSpaces = nil, -- nil equates to all color spaces

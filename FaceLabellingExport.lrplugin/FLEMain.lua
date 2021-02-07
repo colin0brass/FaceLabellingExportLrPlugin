@@ -90,13 +90,13 @@ function FLEMain.stop()
     logger.writeLog(4, "FLEMain.stop")
     FLEExifToolAPI.closeSession(labelling_context.exifToolHandle)
     
-    success = FLEImageMagickAPI.cleanup(labelling_context.imageMagickHandle, true)
+    success = FLEImageMagickAPI.cleanup(labelling_context.imageMagickHandle, false)
 end
 
 --------------------------------------------------------------------------------
 -- Main photo render function, which reads exif and tries to optimise face labels
 
-function FLEMain.renderPhoto(photo, pathOrMessage)
+function FLEMain.renderPhoto(srcPath, renderedPath)
     local success = true
     local failures = {}
     local photoDimensions = {}
@@ -106,10 +106,98 @@ function FLEMain.renderPhoto(photo, pathOrMessage)
     -- initialise context for new photo
     init()
     
-    -- create summary of people from regions 
-    face_regions, photoDimension = getRegions(photo)
+    -- create summary of people from regions
+    
+    -- ==============================================================================
+    -- == this version processes from the *source* photo, not the *exported* photo ==
+    -- ==============================================================================
+    --face_regions, photoDimension = getRegions(srcPath)
+    -- ======================================================================================
+    -- == this version processes from the *exported* photo which should be the 'right' way ==
+    -- ======================================================================================
+    face_regions, photoDimension = getRegions(renderedPath)
+
     logger.writeTable(4, face_regions) -- write to log for debug
     people = get_people(photoDimension, face_regions)
+
+    -- save cropped thumbnails first, before exported image is modified by the labelling
+    if local_exportParams.export_thumbnails then
+        FLEMain.export_thumbnail_images(people, photoDimension, renderedPath)
+    end
+    -- label the exported image (after saving cropped thumbnails)
+    FLEMain.export_labeled_image(people, photoDimension, renderedPath)
+    
+    return success, failures
+end
+
+--------------------------------------------------------------------------------
+-- Export thumbanil images
+
+function FLEMain.export_thumbnail_images(people, photoDimension, photoPath)
+    logger.writeLog(2, "Export thumbnail images")
+
+    logger.writeLog(3, "Create ImageMagick script command file for image labelling")
+
+    for i, person in pairs(people) do -- is this robust for zero length?
+        -- input file
+        exported_file = '"' .. photoPath .. '"'
+        command_string = '# Input file'
+        FLEImageMagickAPI.add_command_string(labelling_context.imageMagickHandle, command_string)
+        command_string = exported_file
+        FLEImageMagickAPI.add_command_string(labelling_context.imageMagickHandle, command_string)
+    
+        -- crop thumbnail
+        command_string = '# Person thumbnail images'
+        FLEImageMagickAPI.add_command_string(labelling_context.imageMagickHandle, command_string)
+        command_string = string.format('-crop %dx%d+%d+%d',
+                person['w'], person['h'], person['x'], person['y'])
+        FLEImageMagickAPI.add_command_string(labelling_context.imageMagickHandle, command_string)
+
+        -- derive output path and create directory if not already existing
+        local exported_path = LrPathUtils.parent(photoPath)
+        if local_exportParams.thumbnails_folder_option == 'ThumbnailsThumbFolder' then
+            outputPath = LrPathUtils.child(exported_path, 'thumb')
+            if not LrFileUtils.exists(outputPath) then
+                LrFileUtils.createDirectory(outputPath)
+            end
+        else -- not 'thumb' folder
+            outputPath = exported_path
+        end
+        
+        -- derive output file name
+        local filename = LrPathUtils.leafName(photoPath)
+        local filename_no_extension = LrPathUtils.removeExtension(filename)
+        local file_extension = LrPathUtils.extension(filename)
+        if local_exportParams.thumbnails_filename_option == 'RegionNumber' then
+            filename_no_extension = filename_no_extension .. string.format('_%02d', i)
+        elseif local_exportParams.thumbnails_filename_option == 'FileUnique' then
+            filename_no_extension = filename
+        else -- region name
+            filename_no_extension = person.name
+        end
+        filename = LrPathUtils.addExtension(filename_no_extension, file_extension)
+        
+        -- combine path and filename, and ensure unique
+        local output_file_with_path = LrPathUtils.child(outputPath, filename)
+        output_file_with_path = LrFileUtils.chooseUniqueFileName(output_file_with_path)
+        
+        -- output file
+        command_string = "-write " .. '"' .. output_file_with_path .. '"'
+        --command_string = "-outfile " .. '"' .. output_file_with_path .. '"'
+        FLEImageMagickAPI.add_command_string(labelling_context.imageMagickHandle, command_string)
+    
+        -- execute ImageMagick commands
+        FLEImageMagickAPI.execute_commands(labelling_context.imageMagickHandle)
+    end
+end
+
+--------------------------------------------------------------------------------
+-- Export labeled image
+
+function FLEMain.export_labeled_image(people, photoDimension, photoPath)
+
+    logger.writeLog(2, "Export labeled image")
+    
     labelling_context.people = people
     labelling_context.photo_dimensions = photoDimension
     
@@ -129,7 +217,7 @@ function FLEMain.renderPhoto(photo, pathOrMessage)
     logger.writeLog(3, "Create ImageMagick script command file for image labelling")
 
     -- input file
-    exported_file = '"' .. pathOrMessage .. '"'
+    exported_file = '"' .. photoPath .. '"'
     command_string = '# Input file'
     FLEImageMagickAPI.add_command_string(labelling_context.imageMagickHandle, command_string)
     command_string = exported_file
@@ -141,71 +229,74 @@ function FLEMain.renderPhoto(photo, pathOrMessage)
     end
     FLEImageMagickAPI.add_command_string(labelling_context.imageMagickHandle, command_string)
 
-    -- person face outlines
-    if local_exportParams.draw_face_outlines then
-        command_string = '# Person face outlines'
-        FLEImageMagickAPI.add_command_string(labelling_context.imageMagickHandle, command_string)
-        command_string = string.format('-strokewidth %d -stroke %s -fill "rgba( 255, 255, 255, 0.0)"',
-                                        prefs.face_outline_line_width,
-                                        prefs.face_outline_colour)
-        FLEImageMagickAPI.add_command_string(labelling_context.imageMagickHandle, command_string)
-        for i, person in pairs(people) do -- is this robust for zero length?
-            command_string = string.format('-draw "rectangle %d,%d %d,%d"',
-                    person['x'], person['y'], person['x']+person['w'], person['y']+person['h'])
+    -- label image
+    if local_exportParams.label_image then
+        
+        -- person face outlines
+        if local_exportParams.draw_face_outlines then
+            command_string = '# Person face outlines'
             FLEImageMagickAPI.add_command_string(labelling_context.imageMagickHandle, command_string)
+            command_string = string.format('-strokewidth %d -stroke %s -fill "rgba( 255, 255, 255, 0.0)"',
+                                            prefs.face_outline_line_width,
+                                            prefs.face_outline_colour)
+            FLEImageMagickAPI.add_command_string(labelling_context.imageMagickHandle, command_string)
+            for i, person in pairs(people) do -- is this robust for zero length?
+                command_string = string.format('-draw "rectangle %d,%d %d,%d"',
+                        person['x'], person['y'], person['x']+person['w'], person['y']+person['h'])
+                FLEImageMagickAPI.add_command_string(labelling_context.imageMagickHandle, command_string)
+            end
         end
-    end
-    
-    -- label boxes
-    if local_exportParams.draw_label_boxes then
-        command_string = '# Label box outlines'
-        FLEImageMagickAPI.add_command_string(labelling_context.imageMagickHandle, command_string)
-        command_string = string.format('-strokewidth %d -stroke %s -fill "rgba( 255, 255, 255, 0.0)"',
-                                        prefs.label_outline_line_width,
-                                        prefs.label_outline_colour)
-        FLEImageMagickAPI.add_command_string(labelling_context.imageMagickHandle, command_string)
-        for i, label in pairs(labels) do -- is this robust for zero length?
-            command_string = string.format('-draw "rectangle %d,%d %d,%d"',
-                    label['x'], label['y'], label['x']+label['w'], label['y']+label['h'])
+        
+        -- label boxes
+        if local_exportParams.draw_label_boxes then
+            command_string = '# Label box outlines'
             FLEImageMagickAPI.add_command_string(labelling_context.imageMagickHandle, command_string)
+            command_string = string.format('-strokewidth %d -stroke %s -fill "rgba( 255, 255, 255, 0.0)"',
+                                            prefs.label_outline_line_width,
+                                            prefs.label_outline_colour)
+            FLEImageMagickAPI.add_command_string(labelling_context.imageMagickHandle, command_string)
+            for i, label in pairs(labels) do -- is this robust for zero length?
+                command_string = string.format('-draw "rectangle %d,%d %d,%d"',
+                        label['x'], label['y'], label['x']+label['w'], label['y']+label['h'])
+                FLEImageMagickAPI.add_command_string(labelling_context.imageMagickHandle, command_string)
+            end
         end
-    end
-    
-    -- label text
-    if local_exportParams.draw_label_text then
-        command_string = '# Face labels'
-        FLEImageMagickAPI.add_command_string(labelling_context.imageMagickHandle, command_string)
-        for i, label in pairs(labels) do -- is this robust for zero length?
-            logger.writeLog(3, "Face label: " .. label.text)
-            command_string = string.format('-font %s -pointsize %d -stroke %s -strokewidth %d -fill white -undercolor "#00000080"',
-                                           prefs.font_type,
-                                           label.font_size, 
-                                           prefs.font_colour,
-                                           prefs.font_line_width)
+        
+        -- label text
+        if local_exportParams.draw_label_text then
+            command_string = '# Face labels'
             FLEImageMagickAPI.add_command_string(labelling_context.imageMagickHandle, command_string)
-            --text = label.text
-            text = text_line_wrap(label.text, label.num_rows)
-            gravity = translate_align_to_gravity(label.text_align)
-            command_string = string.format('-background none -size %dx -gravity %s caption:"%s"',
-                                           label.w, gravity, text)
-            FLEImageMagickAPI.add_command_string(labelling_context.imageMagickHandle, command_string)
-            command_string = string.format('-gravity NorthWest -geometry +%d+%d -composite',
-                                           label.x, label.y)
-            FLEImageMagickAPI.add_command_string(labelling_context.imageMagickHandle, command_string)
+            for i, label in pairs(labels) do -- is this robust for zero length?
+                logger.writeLog(3, "Face label: " .. label.text)
+                command_string = string.format('-font %s -pointsize %d -stroke %s -strokewidth %d -fill white -undercolor "#00000080"',
+                                               prefs.font_type,
+                                               label.font_size, 
+                                               prefs.font_colour,
+                                               prefs.font_line_width)
+                FLEImageMagickAPI.add_command_string(labelling_context.imageMagickHandle, command_string)
+                --text = label.text
+                text = text_line_wrap(label.text, label.num_rows)
+                gravity = translate_align_to_gravity(label.text_align)
+                command_string = string.format('-background none -size %dx -gravity %s caption:"%s"',
+                                               label.w, gravity, text)
+                FLEImageMagickAPI.add_command_string(labelling_context.imageMagickHandle, command_string)
+                command_string = string.format('-gravity NorthWest -geometry +%d+%d -composite',
+                                               label.x, label.y)
+                FLEImageMagickAPI.add_command_string(labelling_context.imageMagickHandle, command_string)
+            end
         end
-    end
-    
+        
+    end -- label_image
+        
     -- output file
-    local filename = LrPathUtils.leafName( pathOrMessage )
-    exported_path = LrPathUtils.parent(pathOrMessage)
+    local filename = LrPathUtils.leafName( photoPath )
+    exported_path = LrPathUtils.parent(photoPath)
     outputPath = '"' .. LrPathUtils.child(exported_path, filename) .. '"'
     command_string = "-write " .. outputPath
     FLEImageMagickAPI.add_command_string(labelling_context.imageMagickHandle, command_string)
 
     -- execute ImageMagick commands
     FLEImageMagickAPI.execute_commands(labelling_context.imageMagickHandle)
-    
-    return success, failures
 end
 
 --------------------------------------------------------------------------------
@@ -227,12 +318,11 @@ end
 
 function get_person(photoDimension, region)
     local name = ifnil(region.name, 'Unknown')
-    w = math.floor( photoDimension.width * region.w + 0.5)
-    h = math.floor( photoDimension.height * region.h + 0.5)
-    xCentre = photoDimension.width * region.xCentre
-    yCentre = photoDimension.height * region.yCentre
-    x = math.floor( xCentre - w/2 + 0.5)
-    y = math.floor( yCentre - h/2 + 0.5)
+    
+    x = region.x
+    y = region.y
+    w = region.w
+    h = region.h
     
     logger.writeLog(4, string.format("Name '%s', x:%d y:%d, w:%d, h:%d", 
         name, x, y, w, h))
@@ -253,8 +343,10 @@ end
 
 function get_people(photoDimension, face_regions)
     local people = {}
+    logger.writeLog(3, "get_people")
     if face_regions and #face_regions > 0 then
         for i, region in pairs(face_regions) do
+            logger.writeLog(3, "get_people: num " .. i)
             people[i] = get_person(photoDimension, region)
         end -- for i, region in pairs(face_regions)
     end -- if face_regions and #face_regions > 0
@@ -613,10 +705,10 @@ end
 --------------------------------------------------------------------------------
 -- Get face regions from photo file exif data
 
-function getRegions(photo)
-    logger.writeLog(4, 'Parse photo: ' .. photo:getRawMetadata('path'))
+function getRegions(photoPath)
+    logger.writeLog(4, 'Parse photo: ' .. photoPath)
     exifToolHandle = labelling_context.exifToolHandle
-    local facesLr, photoDimension = FLEExifToolAPI.getFaceRegionsList(exifToolHandle, photo:getRawMetadata('path'))
+    local facesLr, photoDimension = FLEExifToolAPI.getFaceRegionsList(exifToolHandle, photoPath)
     
     return facesLr, photoDimension
 end

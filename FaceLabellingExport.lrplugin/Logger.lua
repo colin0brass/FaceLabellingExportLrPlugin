@@ -51,6 +51,7 @@ local logger = {}
 filename = "logger"
 log_level_threshold = 2 -- defaut
 local myLogger = {}
+logFilePath = '' -- initial value
 
 --============================================================================--
 -- Functions
@@ -59,22 +60,36 @@ local myLogger = {}
 -- init
 
 function logger.init(filename, set_log_level_threshold)
-	log_level_threshold = set_log_level_threshold
+	logger.set_log_level(set_log_level_threshold)
 	
 	myLogger = LrLogger(filename)
 	myLogger:enable("logfile")
 	
     -- open and truncate log file if it already exists
 	local docdir = LrPathUtils.getStandardFilePath("documents")
-	local file_path = LrPathUtils.child(
+	logFilePath = LrPathUtils.child(
 	                    LrPathUtils.child(docdir, 'LrClassicLogs'), 
 	                    filename .. '.log')
-	if LrFileUtils.exists(file_path) then
-	    local file = io.open(file_path, "w")
+	if LrFileUtils.exists(logFilePath) then
+	    local file = io.open(logFilePath, "w")
 	    if file then
             io.close(file)
         end -- if file
-    end -- if LrFileUtils.exists(file_path)
+    end -- if LrFileUtils.exists(logFilePath)
+end
+
+--------------------------------------------------------------------------------
+-- set_log_level
+
+function logger.set_log_level(set_log_level_threshold)
+	log_level_threshold = set_log_level_threshold
+end
+	
+--------------------------------------------------------------------------------
+-- get_log_level
+
+function logger.get_log_level()
+	return log_level_threshold
 end
 	
 --------------------------------------------------------------------------------
