@@ -126,11 +126,19 @@ function processRenderedPhotos( functionContext, exportContext )
 end
 
 --------------------------------------------------------------------------------
+-- updateExportSettings
+
+function updateExportSettings ( exportSettings )
+    exportSettings.LR_removeFaceMetadata = false -- ensure face meta-data included in file export
+end
+
+
+--------------------------------------------------------------------------------
 -- Return export service table
 
 return {
-    hideSections = { -- 'fileNaming', 'metadata', 'imageSettings',  'fileSettings', 
-        'outputSharpening', 'video', 'watermarking' },
+    hideSections = { -- 'fileNaming', 'imageSettings',  'fileSettings', 
+        'metadata', 'outputSharpening', 'video', 'watermarking' },
         
     --allowFileFormats = nil, -- nil equates to all available formats
     --allowColorSpaces = nil, -- nil equates to all color spaces
@@ -139,6 +147,8 @@ return {
     endDialog                   = FLEExportDialogs.endDialog,
     sectionsForTopOfDialog      = FLEExportDialogs.sectionsForTopOfDialog,
     sectionsForBottomOfDialog   = FLEExportDialogs.sectionsForBottomOfDialog,
+    
+    updateExportSettings        = updateExportSettings,
     
     processRenderedPhotos       = processRenderedPhotos,
 }

@@ -86,6 +86,8 @@ prefs.draw_label_boxes   = ifnil(prefs.draw_label_boxes,    false)
 prefs.obfuscate_labels   = ifnil(prefs.obfuscate_labels,    false)
 prefs.obfuscate_image    = ifnil(prefs.obfuscate_image,     false)
 prefs.remove_exif        = ifnil(prefs.remove_exif,         false)
+-- Crop preferences to copy into ExportParams
+prefs.crop_image         = ifnil(prefs.crop_image,          false)
 -- Export thumbnails
 prefs.export_thumbnails  = ifnil(prefs.export_thumbnails,   false)
 prefs.thumbnails_filename_option = ifnil(prefs.thumbnails_filename_option, 'RegionNumber')

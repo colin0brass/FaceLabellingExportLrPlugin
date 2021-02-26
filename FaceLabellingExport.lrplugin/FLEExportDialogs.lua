@@ -134,6 +134,7 @@ function FLEExportDialogs.startDialog( propertyTable )
     propertyTable.draw_label_text   = prefs.draw_label_text
     propertyTable.draw_face_outlines= prefs.draw_face_outlines
     propertyTable.draw_label_boxes  = prefs.draw_label_boxes
+    propertyTable.crop_image        = prefs.crop_image
     
     -- Obfuscation preferences
     propertyTable.obfuscate_labels   = prefs.obfuscate_labels
@@ -167,6 +168,7 @@ function FLEExportDialogs.endDialog( propertyTable )
     prefs.draw_label_text       = propertyTable.draw_label_text
     prefs.draw_face_outlines    = propertyTable.draw_face_outlines
     prefs.draw_label_boxes      = propertyTable.draw_label_boxes
+    prefs.crop_image            = propertyTable.crop_image
     -- Obfuscation preferences
     prefs.obfuscate_labels      = propertyTable.obfuscate_labels
     prefs.obfuscate_image       = propertyTable.obfuscate_image
@@ -255,44 +257,53 @@ function FLEExportDialogs.sectionsForBottomOfDialog( f, propertyTable )
                 
                 f:row { -- general export configuration options
                     f:checkbox {
-                        title = LOC "$$$/FaceLabelling/ExportDialog/drawLabelText=Label image",
+                        title = LOC "$$$/FaceLabelling/ExportDialog/ImageLabel=Label image",
                         value = bind 'label_image',
                     },
                     f:group_box {
-                        title = LOC "$$$/FaceLabelling/ExportDialog/thumbnailFilenameOptions=Image labeling options",
+                        title = LOC "$$$/FaceLabelling/ExportDialog/ImageLabelOptions=Image labeling options",
                         f:checkbox {
-                                title = LOC "$$$/FaceLabelling/ExportDialog/drawLabelText=Draw label text",
+                                title = LOC "$$$/FaceLabelling/ExportDialog/ImageLabelText=Draw label text",
                                 value = bind 'draw_label_text',
                                 enabled = bind 'label_image',
                         },
                         f:checkbox {
-                                title = LOC "$$$/FaceLabelling/ExportDialog/drawFaceOutlines=Draw face outlines:",
+                                title = LOC "$$$/FaceLabelling/ExportDialog/ImageLabelFaceOutlines=Draw face outlines",
                                 value = bind 'draw_face_outlines',
                                 enabled = bind 'label_image',
                         },
                         f:checkbox {
-                                title = LOC "$$$/FaceLabelling/ExportDialog/drawLabelBoxes=Draw label outlines:",
+                                title = LOC "$$$/FaceLabelling/ExportDialog/ImageLabelBoxes=Draw label outlines",
                                 value = bind 'draw_label_boxes',
                                 enabled = bind 'label_image',
                         },
                     }, -- group_box
                     f:group_box {
-                        title = LOC "$$$/FaceLabelling/ExportDialog/thumbnailFilenameOptions=Obfuscation options",
+                        title = LOC "$$$/FaceLabelling/ExportDialog/ImageFilenameOptions=Obfuscation options",
                         f:checkbox {
-                                title = LOC "$$$/FaceLabelling/ExportDialog/obfuscate_labels=Obfuscate labels:",
+                                title = LOC "$$$/FaceLabelling/ExportDialog/obfuscate_labels=Obfuscate labels",
                                 tooltip = "Randomise characters and digits in labels",
                                 value = bind 'obfuscate_labels',
                                 enabled = bind 'label_image',
                         },
                         f:checkbox {
-                                title = LOC "$$$/FaceLabelling/ExportDialog/obfuscate_image=Obfuscate image:",
+                                title = LOC "$$$/FaceLabelling/ExportDialog/obfuscate_image=Obfuscate image",
                                 tooltip = "Fade output image",
                                 value = bind 'obfuscate_image',
                         },
                         f:checkbox {
-                                title = LOC "$$$/FaceLabelling/ExportDialog/remove_exif=Remove exif:",
+                                title = LOC "$$$/FaceLabelling/ExportDialog/remove_exif=Remove exif",
                                 tooltip = "Remove exif metadata",
                                 value = bind 'remove_exif',
+                        },
+                    }, -- group_box
+                    f:group_box {
+                        title = LOC "$$$/FaceLabelling/ExportDialog/ImageOptions=Image options",
+                        f:checkbox {
+                                title = LOC "$$$/FaceLabelling/ExportDialog/ImageCrop=Apply crop",
+                                tooltip = "Apply crop (if present) as per EXIF",
+                                value = false, -- bind 'crop_image',
+                                enabled = false, -- bind 'label_image', -- functionality not yet implemented
                         },
                     }, -- group_box
                 }, -- row
@@ -328,23 +339,20 @@ function FLEExportDialogs.sectionsForBottomOfDialog( f, propertyTable )
                         },
                     }, -- group_box
                     f:group_box {
-                        title = LOC "$$$/FaceLabelling/ExportDialog/thumbnailFilenameOptions=Thumbnail export options",
-                        f:group_box {
-                            title = LOC "$$$/FaceLabelling/ExportDialog/thumbnail_folder='thumb' sub-folder:",
-                            f:radio_button {
-                                title = 'thumb sub-folder' ,
-                                value = bind 'thumbnails_folder_option',
-                                checked_value = 'ThumbnailsThumbFolder',
-                                enabled = bind 'export_thumbnails',
-                            },
-                            f:radio_button {
-                                title = 'no sub-folder' ,
-                                value = bind 'thumbnails_folder_option',
-                                checked_value = 'ThumbnailsNoFolder',
-                                enabled = bind 'export_thumbnails',
-                            },
-                        }, -- group_box
-                    },
+                        title = LOC "$$$/FaceLabelling/ExportDialog/thumbnail_folder=Thumbnail sub-folder",
+                        f:radio_button {
+                            title = 'thumb sub-folder' ,
+                            value = bind 'thumbnails_folder_option',
+                            checked_value = 'ThumbnailsThumbFolder',
+                            enabled = bind 'export_thumbnails',
+                        },
+                        f:radio_button {
+                            title = 'no sub-folder' ,
+                            value = bind 'thumbnails_folder_option',
+                            checked_value = 'ThumbnailsNoFolder',
+                            enabled = bind 'export_thumbnails',
+                        },
+                    }, -- group_box
                 }, -- row
             }, -- group_box
             
