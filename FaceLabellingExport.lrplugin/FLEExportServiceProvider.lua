@@ -132,7 +132,6 @@ function updateExportSettings ( exportSettings )
     exportSettings.LR_removeFaceMetadata = false -- ensure face meta-data included in file export
 end
 
-
 --------------------------------------------------------------------------------
 -- Return export service table
 

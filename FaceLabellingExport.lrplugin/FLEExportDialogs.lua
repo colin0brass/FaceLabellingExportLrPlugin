@@ -39,6 +39,7 @@ local LrFileUtils       = import("LrFileUtils")
 local LrPathUtils       = import("LrPathUtils")
 local LrPrefs           = import("LrPrefs")
 local LrView            = import("LrView")
+local LrBinding         = import("LrBinding")
 
 --============================================================================--
 -- Local imports
@@ -117,6 +118,52 @@ local function updateExportStatus( propertyTable )
 end
 
 --------------------------------------------------------------------------------
+-- Check sliders for desired label width for large vs small face regions
+-- and ensure ratio settings never cross-over
+-- so ratio for small images is never smaller than ratio for large images and vice versa
+local function coupleSliders_ratioSmallAdjusted( propertyTable )
+    if propertyTable.label_width_to_region_ratio_small < propertyTable.label_width_to_region_ratio_large then
+        propertyTable.label_width_to_region_ratio_large = propertyTable.label_width_to_region_ratio_small
+    end
+end
+local function coupleSliders_ratioLargeAdjusted( propertyTable )
+    if propertyTable.label_width_to_region_ratio_large > propertyTable.label_width_to_region_ratio_small then
+        propertyTable.label_width_to_region_ratio_small = propertyTable.label_width_to_region_ratio_large
+    end
+end
+
+--------------------------------------------------------------------------------
+-- Check sliders for thresholds for large vs small face region definitions
+-- and ensure ratio settings never cross-over
+-- so ratio for small regions is never smaller than ratio for large regions and vice versa
+local function coupleSliders_regionSmallAdjusted( propertyTable )
+    if propertyTable.image_width_to_region_ratio_small < propertyTable.image_width_to_region_ratio_large then
+        propertyTable.image_width_to_region_ratio_large = propertyTable.image_width_to_region_ratio_small
+    end
+end
+local function coupleSliders_regionLargeAdjusted( propertyTable )
+    if propertyTable.image_width_to_region_ratio_large > propertyTable.image_width_to_region_ratio_small then
+        propertyTable.image_width_to_region_ratio_small = propertyTable.image_width_to_region_ratio_large
+    end
+end
+
+--------------------------------------------------------------------------------
+-- Reset Export Preset Fields to default values
+
+function resetExportPresetFields( propertyTable )
+    logger.writeLog(3, "resetExportPresetFields")
+    --logger.writeTable(3, preference_table)
+    for i, list_value in pairs(preference_table) do
+        --if propertyTable[list_value.key] == nil then
+        --    logger.writeLog(4, list_value.key .. ' not found for reset')
+        --else
+        propertyTable[list_value.key] = list_value.default
+        logger.writeLog(4, list_value.key .. ' reset to ' .. tostring(list_value.default))
+        --end
+    end
+end
+
+--------------------------------------------------------------------------------
 -- start dialog
 
 function FLEExportDialogs.startDialog( propertyTable )
@@ -129,29 +176,24 @@ function FLEExportDialogs.startDialog( propertyTable )
     propertyTable.imageMagickApp    = prefs.imageMagickApp
     propertyTable.imageConvertApp   = prefs.imageConvertApp
     
-    -- Export preferences
-    propertyTable.label_image       = prefs.label_image
-    propertyTable.draw_label_text   = prefs.draw_label_text
-    propertyTable.draw_face_outlines= prefs.draw_face_outlines
-    propertyTable.draw_label_boxes  = prefs.draw_label_boxes
-    propertyTable.crop_image        = prefs.crop_image
+    -- using prefs rather than exportPresetFields in order to configure
+    -- from Lightroom Plug-in Manager, before export
+    for i, list_value in pairs(preference_table) do
+        propertyTable[list_value.key] = prefs[list_value.key]
+    end
     
-    -- Obfuscation preferences
-    propertyTable.obfuscate_labels   = prefs.obfuscate_labels
-    propertyTable.obfuscate_image    = prefs.obfuscate_image
-    propertyTable.remove_exif        = prefs.remove_exif
-  
-    -- Export thumbnails preferences
-    propertyTable.export_thumbnails  = prefs.export_thumbnails
-    propertyTable.thumbnails_filename_option = prefs.thumbnails_filename_option
-    propertyTable.thumbnails_folder_option = prefs.thumbnails_folder_option
-
     propertyTable:addObserver( 'LR_export_destinationType', updateExportStatus )
     propertyTable:addObserver( 'LR_export_useSubfolder', updateExportStatus )
     propertyTable:addObserver( 'LR_export_destinationPathPrefix', updateExportStatus )
     propertyTable:addObserver( 'LR_export_destinationPathSuffix', updateExportStatus )
     
     propertyTable:addObserver( 'helperAppsPresent', updateExportStatus )
+    
+    -- couple sliders to ensure relationship between values
+     propertyTable:addObserver( 'label_width_to_region_ratio_small', coupleSliders_ratioSmallAdjusted )
+     propertyTable:addObserver( 'label_width_to_region_ratio_large', coupleSliders_ratioLargeAdjusted )
+     propertyTable:addObserver( 'image_width_to_region_ratio_small', coupleSliders_regionSmallAdjusted )
+     propertyTable:addObserver( 'label_width_to_region_ratio_large', coupleSliders_regionLargeAdjusted )
 
     updateExportStatus( propertyTable )
 end
@@ -162,27 +204,613 @@ end
 function FLEExportDialogs.endDialog( propertyTable )
     local prefs = LrPrefs.prefsForPlugin()
     
-    -- Export preferences
-    -- copy any updated preferences back for persistent storage
-    prefs.label_image           = propertyTable.label_image
-    prefs.draw_label_text       = propertyTable.draw_label_text
-    prefs.draw_face_outlines    = propertyTable.draw_face_outlines
-    prefs.draw_label_boxes      = propertyTable.draw_label_boxes
-    prefs.crop_image            = propertyTable.crop_image
-    -- Obfuscation preferences
-    prefs.obfuscate_labels      = propertyTable.obfuscate_labels
-    prefs.obfuscate_image       = propertyTable.obfuscate_image
-    prefs.remove_exif           = propertyTable.remove_exif
-    -- Export thumbnails preferences
-    prefs.export_thumbnails     = propertyTable.export_thumbnails
-    prefs.thumbnails_filename_option = propertyTable.thumbnails_filename_option
-    prefs.thumbnails_folder_option = propertyTable.thumbnails_folder_option
-    
+    -- using prefs rather than exportPresetFields in order to configure
+    -- from Lightroom Plug-in Manager, before export
+    for i, list_value in pairs(preference_table) do
+        prefs[list_value.key] = propertyTable[list_value.key]
+    end
+
 end
 
 --------------------------------------------------------------------------------
 -- sections for top of dialog
 function FLEExportDialogs.sectionsForTopOfDialog( f, propertyTable )
+end
+
+--------------------------------------------------------------------------------
+-- dialog section for export labeled image config
+
+function exportLabeledImageView(f, propertyTable)
+    local bind = LrView.bind
+    local share = LrView.share
+    
+    result = f:group_box { -- export labeled image
+        title = "Export labeled image",
+        fill_horizontal = 1,
+        
+        f:row { -- general export configuration options
+            f:checkbox {
+                title = LOC "$$$/FaceLabelling/ExportDialog/ImageLabel=Label image",
+                value = bind 'label_image',
+            },
+            f:group_box {
+                title = LOC "$$$/FaceLabelling/ExportDialog/ImageLabelOptions=Image labeling options",
+                f:checkbox {
+                        title = LOC "$$$/FaceLabelling/ExportDialog/ImageLabelText=Draw label text",
+                        value = bind 'draw_label_text',
+                        enabled = bind 'label_image',
+                },
+                f:checkbox {
+                        title = LOC "$$$/FaceLabelling/ExportDialog/ImageLabelFaceOutlines=Draw face outlines",
+                        value = bind 'draw_face_outlines',
+                        enabled = bind 'label_image',
+                },
+                f:checkbox {
+                        title = LOC "$$$/FaceLabelling/ExportDialog/ImageLabelBoxes=Draw label outlines",
+                        value = bind 'draw_label_boxes',
+                        enabled = bind 'label_image',
+                },
+            }, -- group_box
+            f:group_box {
+                title = LOC "$$$/FaceLabelling/ExportDialog/ImageFilenameOptions=Obfuscation options",
+                f:checkbox {
+                        title = LOC "$$$/FaceLabelling/ExportDialog/obfuscate_labels=Obfuscate labels",
+                        tooltip = "Randomise characters and digits in labels",
+                        value = bind 'obfuscate_labels',
+                        enabled = bind 'label_image',
+                },
+                f:checkbox {
+                        title = LOC "$$$/FaceLabelling/ExportDialog/obfuscate_image=Obfuscate image",
+                        tooltip = "Fade output image",
+                        value = bind 'obfuscate_image',
+                },
+                f:checkbox {
+                        title = LOC "$$$/FaceLabelling/ExportDialog/remove_exif=Remove exif",
+                        tooltip = "Remove exif metadata",
+                        value = bind 'remove_exif',
+                },
+            }, -- group_box
+            f:group_box {
+                title = LOC "$$$/FaceLabelling/ExportDialog/ImageOptions=Image options",
+                f:checkbox {
+                        title = LOC "$$$/FaceLabelling/ExportDialog/ImageCrop=Apply crop",
+                        tooltip = "Apply crop (if present) as per EXIF",
+                        value = bind 'crop_image',
+                        enabled = bind 'label_image', -- functionality not yet implemented
+                },
+            }, -- group_box
+        }, -- row; general export configuration options
+    } -- group_box; export labeled image
+        
+    return result
+end
+
+--------------------------------------------------------------------------------
+-- dialog section for export labeled image labelling config
+
+function exportLabellingView(f, propertyTable)
+    local bind = LrView.bind
+    local share = LrView.share
+    
+    -- expand simple list to list of tuples (title, value) for menu display
+    local list = { 'white', 'black', 'blue', 'red', 'green', 'grey' }
+    local menu_colour_list = {}
+    for i, list_value in pairs(list) do
+        menu_colour_list[i] = {title=list_value, value=list_value}
+    end
+    
+    local list = {'below', 'above', 'left', 'right'}
+    local menu_positions_list = {}
+    for i, list_value in pairs(list) do
+        menu_positions_list[i] = {title=list_value, value=list_value}
+    end
+    
+    --local list = {'center', 'left', 'right'}
+    --local menu_align_list = {}
+    --for i, list_value in pairs(list) do
+    --    menu_align_list[i] = {title=list_value, value=list_value}
+    --end
+ 
+    result = f:row { -- labelling config
+        f:column {
+            f:group_box {
+                title = LOC "$$$/FaceLabelling/ExportDialog/LabelPositionOptions=Label position options",
+                f:radio_button {
+                    title = 'Fixed label positions',
+                    value = bind 'label_auto_optimise',
+                    checked_value = false,
+                    tooltip = "Fixed font size",
+                },
+                f:radio_button {
+                    title = 'Dynamic label positions',
+                    height_in_lines = 2,
+                    value = bind 'label_auto_optimise',
+                    checked_value = true,
+                    tooltip = "Dynamic label positions",
+                },
+            },
+        }, -- column
+        f:column {
+            f:group_box { -- Label options
+                title = "Label options",
+                f:column {
+                    f:static_text {
+                        title = 'Label outline line width:',
+                    },
+                    f:row {
+                        f:edit_field {
+                            width_in_digits = 2,
+                            place_horizontal = 0.5,
+                            min = 1,
+                            max = 10,
+                            precision = 1,
+                            increment = 1,
+                            value = bind('label_outline_line_width'),
+                            enabled = true,
+                            tooltip = 'Label outline line width',
+                        },
+                        f:slider {
+                            min = 1,
+                            max = 10,
+                            integral = true,
+                            value = bind('label_outline_line_width'),
+                            enabled = true,
+                            tooltip = 'Label outline line width',
+                            place_vertical = 0.5,
+                        },
+                    }, -- row
+                    f:static_text {
+                        title = 'Face outline line width:',
+                    },
+                    f:row {
+                        f:edit_field {
+                            width_in_digits = 2,
+                            place_horizontal = 0.5,
+                            min = 1,
+                            max = 10,
+                            precision = 1,
+                            increment = 1,
+                            value = bind('face_outline_line_width'),
+                            enabled = true,
+                            tooltip = 'Face outline line width',
+                        },
+                        f:slider {
+                            min = 1,
+                            max = 10,
+                            integral = true,
+                            value = bind('face_outline_line_width'),
+                            enabled = true,
+                            tooltip = 'Face outline line width',
+                            place_vertical = 0.5,
+                        },
+                    }, -- row
+                    f:static_text {
+                        title = 'Face outline colour:',
+                    },
+                    f:popup_menu {
+                        items = menu_colour_list,
+                        value = bind 'face_outline_colour',
+                        tooltip = "Face outline box colour (if enabled)",
+                        enabled = bind 'draw_face_outlines',
+                    },
+                    f:static_text {
+                        title = 'Label outline colour:',
+                    },
+                    f:popup_menu {
+                        items = menu_colour_list,
+                        value = bind 'label_outline_colour',
+                        tooltip = "Label outline box colour (if enabled)",
+                        enabled = bind 'draw_label_boxes',
+                    },
+                }, -- column
+            }, -- group_box
+        }, -- column
+        f:column {
+            f:group_box { -- Label options
+                title = "Label settings (or initial values if dynamic)",
+                f:column {
+                    f:static_text {
+                        title = 'Label position:',
+                    },
+                    f:popup_menu {
+                        items = menu_positions_list,
+                        value = bind 'default_position',
+                        tooltip = "Label position (or initial position if dynamic)",
+                        enabled = bind 'draw_label_text',
+                    },
+                    --f:static_text {
+                    --    title = 'Label alignment:',
+                    --},
+                    --f:popup_menu {
+                    --    items = menu_align_list,
+                    --    value = bind 'default_align',
+                    --    tooltip = "Label alignment (or initial alignment if dynamic)",
+                    --    enabled = bind 'draw_label_text',
+                    --},
+                    f:static_text {
+                        title = 'Label number of rows:',
+                    },
+                    f:row {
+                        f:edit_field {
+                            width_in_digits = 1,
+                            place_horizontal = 0.5,
+                            min = 1,
+                            max = 4,
+                            precision = 1,
+                            increment = 1,
+                            value = bind('default_num_rows'),
+                            enabled = bind('draw_label_text'),
+                            tooltip = "Number of text lines for label (or initial value if dynamic)",
+                        },
+                        f:slider {
+                            min = 1,
+                            max = 4,
+                            integral = true,
+                            value = bind('default_num_rows'),
+                            enabled = bind('draw_label_text'),
+                            tooltip = "Number of text lines for label (or initial value if dynamic)",
+                            place_vertical = 0.5,
+                        },
+                    }, -- row
+                }, -- column
+            }, -- group_box
+            f:group_box { -- Label options
+                show_title = false,
+                f:static_text {
+                    title = 'Image margin:',
+                },
+                f:row {
+                    f:edit_field {
+                        width_in_digits = 3,
+                        place_horizontal = 0.5,
+                        min = 1,
+                        max = 100,
+                        precision = 1,
+                        increment = 1,
+                        value = bind('image_margin'),
+                        enabled = bind('label_auto_optimise'),
+                        tooltip = "Image margin, so labels don't go right to the edge",
+                    },
+                    f:slider {
+                        min = 1,
+                        max = 100,
+                        integral = true,
+                        value = bind('image_margin'),
+                        enabled = bind('label_auto_optimise'),
+                        tooltip = "Image margin, so labels don't go right to the edge",
+                        place_vertical = 0.5,
+                    },
+                }, -- row
+            }, -- group_box
+        }, -- column
+    } -- row; labelling config
+        
+    return result
+end
+
+--------------------------------------------------------------------------------
+-- dialog section for export thumbnails
+
+function exportLabelSettingsView(f, propertyTable)
+    local bind = LrView.bind
+    local share = LrView.share
+    
+    -- expand simple list to list of tuples (title, value) for menu display
+    local list = { 'white', 'black', 'blue', 'red', 'green', 'grey' }
+    local menu_colour_list = {}
+    for i, list_value in pairs(list) do
+        menu_colour_list[i] = {title=list_value, value=list_value}
+    end
+    
+    result = f:row { -- labelling config
+        f:column {
+            f:group_box {
+                title = LOC "$$$/FaceLabelling/ExportDialog/LabelSizeOptions=Label size options",
+                f:radio_button {
+                    title = 'Fixed font size',
+                    value = bind 'label_size_option',
+                    checked_value = 'LabelFixedFontSize',
+                    tooltip = "Fixed font size",
+                },
+                f:radio_button {
+                    title = 'Dynamic font size',
+                    value = bind 'label_size_option',
+                    checked_value = 'LabelDynamicFontSize',
+                    tooltip = "Dynamic font size",
+                },
+            },
+            f:group_box {
+                show_title = false,
+                f:static_text {
+                    title = 'Label font size (if fixed):',
+                },
+                f:row {
+                    f:edit_field {
+                        width_in_digits = 3,
+                        place_horizontal = 0.5,
+                        min = 1,
+                        max = 100,
+                        precision = 0,
+                        increment = 1,
+                        value = bind('label_font_size_fixed'),
+                        enabled = LrBinding.keyEquals('label_size_option', 'LabelFixedFontSize'),
+                        tooltip = "Label font size (if fixed)",
+                    },
+                    f:slider {
+                        min = 1,
+                        max = 100,
+                        integral = true,
+                        value = bind('label_font_size_fixed'),
+                        enabled = LrBinding.keyEquals('label_size_option', 'LabelFixedFontSize'),
+                        tooltip = "Label font size (if fixed)",
+                        place_vertical = 0.5,
+                    },
+                }, -- row
+                f:static_text {
+                    title = 'Label font line width:',
+                },
+                f:row {
+                    f:edit_field {
+                        width_in_digits = 2,
+                        place_horizontal = 0.5,
+                        min = 1,
+                        max = 10,
+                        precision = 1,
+                        increment = 1,
+                        value = bind('font_line_width'),
+                        enabled = true,
+                        tooltip = 'Label font line width',
+                    },
+                    f:slider {
+                        min = 1,
+                        max = 10,
+                        integral = true,
+                        value = bind('font_line_width'),
+                        enabled = true,
+                        tooltip = 'Label font line width',
+                        place_vertical = 0.5,
+                    },
+                }, -- row
+                f:static_text {
+                    title = 'Label font colour:',
+                },
+                f:popup_menu {
+                    items = menu_colour_list,
+                    value = bind 'font_colour',
+                    tooltip = "Label font colour",
+                    enabled = bind 'draw_label_text',
+                },
+                f:static_text {
+                    title = 'Font type:',
+                },
+                f:static_text {
+                    title = bind 'font_type',
+                },
+                f:static_text {
+                    title = 'Label undercolour:',
+                },
+                f:static_text {
+                    title = bind 'label_undercolour',
+                },
+            }, -- group_box
+        }, -- column
+        f:column {
+            f:group_box {
+                title = LOC "$$$/FaceLabelling/ExportDialog/LabelFontSizeDynamic=Label dynamic font size options",
+                f:static_text {
+                    title = 'For each image, check face region sizes, \nand choose label font size',
+                },
+            }, -- group_box
+            f:group_box {
+                show_title = false,
+                f:static_text {
+                    title = 'Desired label width:',
+                },
+                f:static_text {
+                    title = 'For small face regions:',
+                },
+                f:static_text {
+                    title='\tlabel width up to',
+                },
+                f:row {
+                    f:edit_field {
+                        width_in_digits = 3,
+                        place_horizontal = 0.5,
+                        min = 0.1,
+                        max = 10,
+                        precision = 1,
+                        increment = 0.1,
+                        value = bind('label_width_to_region_ratio_small'),
+                        enabled = LrBinding.keyEquals('label_size_option', 'LabelDynamicFontSize'),
+                        tooltip = 'Desired size of label (as multiple of average region width) for small face regions (e.g. 2x)',
+                    },
+                    f:slider {
+                        min = 0.1,
+                        max = 10,
+                        integral = false,
+                        value = bind('label_width_to_region_ratio_small'),
+                        enabled = LrBinding.keyEquals('label_size_option', 'LabelDynamicFontSize'),
+                        tooltip = 'Desired size of label (as multiple of average region width) for small face regions (e.g. 2x)',
+                        place_vertical = 0.5,
+                    },
+                }, -- row
+                f:static_text {
+                    title = '\tx average face region size',
+                },
+                f:static_text {
+                    title = 'For large face regions:',
+                },
+                f:static_text {
+                    title='\tlabel width down to',
+                },
+                f:row {
+                    f:edit_field {
+                        width_in_digits = 3,
+                        place_horizontal = 0.5,
+                        min = 0.1,
+                        max = 10,
+                        precision = 1,
+                        increment = 0.1,
+                        value = bind('label_width_to_region_ratio_large'),
+                        enabled = LrBinding.keyEquals('label_size_option', 'LabelDynamicFontSize'),
+                        tooltip = 'Desired size of label (as multiple of average region width) for large face regions (e.g. 0.5x)',
+                    },
+                    f:slider {
+                        min = 0.1,
+                        max = 10,
+                        integral = false,
+                        value = bind('label_width_to_region_ratio_large'),
+                        enabled = LrBinding.keyEquals('label_size_option', 'LabelDynamicFontSize'),
+                        tooltip = 'Desired size of label (as multiple of average region width) for large face regions (e.g. 0.5x)',
+                        place_vertical = 0.5,
+                    },
+                }, -- row
+                f:static_text {
+                    title = '\tx average face region size',
+                },
+                f:static_text {
+                    title = 'Linear and clipped within that range',
+                },
+            }, -- group_box
+            f:group_box {
+                --title = LOC "$$$/FaceLabelling/ExportDialog/LabelFontSizeDynamic=Dynamic font size",
+                show_title = false,
+                f:static_text {
+                    title = "Where thresholds for face region size is as follows:",
+                },
+                f:static_text {
+                    title = 'Small face region:',
+                },
+                f:static_text {
+                    title='\tif at least',
+                },
+                f:row {
+                    f:edit_field {
+                        width_in_digits = 3,
+                        place_horizontal = 0.5,
+                        min = 0.5,
+                        max = 20,
+                        precision = 1,
+                        increment = 0.1,
+                        value = bind('image_width_to_region_ratio_small'),
+                        enabled = LrBinding.keyEquals('label_size_option', 'LabelDynamicFontSize'),
+                        tooltip = 'Region size (as fraction if image width) that counts as small (as fraction of image size) (e.g. /20)',
+                    },
+                    f:slider {
+                        min = 0.5,
+                        max = 20,
+                        integral = false,
+                        value = bind('image_width_to_region_ratio_small'),
+                        enabled = LrBinding.keyEquals('label_size_option', 'LabelDynamicFontSize'),
+                        tooltip = 'Region size (as fraction if image width) that counts as small (as fraction of image size) (e.g. /20)',
+                        place_vertical = 0.5,
+                    },
+                }, -- row
+                f:static_text {
+                    title = '\tregions across image width',
+                },
+                f:static_text {
+                    title = 'Large face region:',
+                },
+                f:static_text {
+                    title='\tif as few as',
+                },
+                f:row {
+                    f:edit_field {
+                        width_in_digits = 3,
+                        place_horizontal = 0.5,
+                        min = 0.1,
+                        max = 5,
+                        precision = 1,
+                        increment = 0.1,
+                        value = bind('image_width_to_region_ratio_large'),
+                        enabled = LrBinding.keyEquals('label_size_option', 'LabelDynamicFontSize'),
+                        tooltip = 'Region size (as fraction if image width) that counts as large (as fraction of image size) (e.g. /5)',
+                    },
+                    f:slider {
+                        min = 0.1,
+                        max = 5,
+                        integral = false,
+                        value = bind('image_width_to_region_ratio_large'),
+                        enabled = LrBinding.keyEquals('label_size_option', 'LabelDynamicFontSize'),
+                        tooltip = 'Region size (as fraction if image width) that counts as large (as fraction of image size) (e.g. /5)',
+                        place_vertical = 0.5,
+                    },
+                }, -- row
+                f:static_text {
+                    title = '\tregions across image width',
+                },
+            }, -- group_box
+            f:group_box {
+                show_title = false,
+                f:static_text {
+                    title = 'Based on label font-sizing test string:',
+                },
+                f:static_text {
+                    title = bind('test_label'),
+                },
+            }, -- group_box
+        }, -- column
+    } -- row; general export configuration options
+            
+    return result
+end
+
+--------------------------------------------------------------------------------
+-- dialog section for export thumbnails
+
+function exportThumbnailsView(f, propertyTable)
+    local bind = LrView.bind
+    local share = LrView.share
+    
+    result = f:group_box { -- export thumbnail images
+            title = "Export thumbnail images",
+            fill_horizontal = 1,
+            f:row { -- config options
+                f:checkbox {
+                    title = LOC "$$$/FaceLabelling/ExportDialog/drawLabelText=Export thumbnail images",
+                        value = bind 'export_thumbnails',
+                },
+                f:group_box {
+                    title = LOC "$$$/FaceLabelling/ExportDialog/thumbnailFilenameOptions=Thumbnail filename options",
+                    f:radio_button {
+                        title = 'Region name' ,
+                        value = bind 'thumbnails_filename_option',
+                        checked_value = 'RegionName',
+                        enabled = bind 'export_thumbnails',
+                    },
+                    f:radio_button {
+                        title = 'Filename + region number' ,
+                        value = bind 'thumbnails_filename_option',
+                        checked_value = 'RegionNumber',
+                        enabled = bind 'export_thumbnails',
+                    },
+                    f:radio_button {
+                        title = 'Filename uniquified' ,
+                        value = bind 'thumbnails_filename_option',
+                        checked_value = 'FileUnique',
+                        enabled = bind 'export_thumbnails',
+                    },
+                }, -- group_box
+                f:group_box {
+                    title = LOC "$$$/FaceLabelling/ExportDialog/thumbnail_folder=Thumbnail sub-folder",
+                    f:radio_button {
+                        title = 'thumb sub-folder' ,
+                        value = bind 'thumbnails_folder_option',
+                        checked_value = 'ThumbnailsThumbFolder',
+                        enabled = bind 'export_thumbnails',
+                    },
+                    f:radio_button {
+                        title = 'no sub-folder' ,
+                        value = bind 'thumbnails_folder_option',
+                        checked_value = 'ThumbnailsNoFolder',
+                        enabled = bind 'export_thumbnails',
+                    },
+                }, -- group_box
+            }, -- row
+        } -- group_box; export thumbnail images
+    
+    return result
 end
 
 --------------------------------------------------------------------------------
@@ -243,6 +871,7 @@ function FLEExportDialogs.sectionsForBottomOfDialog( f, propertyTable )
     local bind = LrView.bind
     local share = LrView.share
     
+   
     local result = {
         {
             title = LOC "$$$/FaceLabelling/ExportDialog/FaceLabellingSettings=Face Labelling Options",
@@ -251,116 +880,42 @@ function FLEExportDialogs.sectionsForBottomOfDialog( f, propertyTable )
             
             bind_to_object = propertyTable,
             
-            f:group_box { -- export labeled image
-                title = "Export labeled image",
+            f:separator { fill_horizontal = 1 },
+            f:view {
                 fill_horizontal = 1,
-                
-                f:row { -- general export configuration options
-                    f:checkbox {
-                        title = LOC "$$$/FaceLabelling/ExportDialog/ImageLabel=Label image",
-                        value = bind 'label_image',
-                    },
-                    f:group_box {
-                        title = LOC "$$$/FaceLabelling/ExportDialog/ImageLabelOptions=Image labeling options",
-                        f:checkbox {
-                                title = LOC "$$$/FaceLabelling/ExportDialog/ImageLabelText=Draw label text",
-                                value = bind 'draw_label_text',
-                                enabled = bind 'label_image',
-                        },
-                        f:checkbox {
-                                title = LOC "$$$/FaceLabelling/ExportDialog/ImageLabelFaceOutlines=Draw face outlines",
-                                value = bind 'draw_face_outlines',
-                                enabled = bind 'label_image',
-                        },
-                        f:checkbox {
-                                title = LOC "$$$/FaceLabelling/ExportDialog/ImageLabelBoxes=Draw label outlines",
-                                value = bind 'draw_label_boxes',
-                                enabled = bind 'label_image',
-                        },
-                    }, -- group_box
-                    f:group_box {
-                        title = LOC "$$$/FaceLabelling/ExportDialog/ImageFilenameOptions=Obfuscation options",
-                        f:checkbox {
-                                title = LOC "$$$/FaceLabelling/ExportDialog/obfuscate_labels=Obfuscate labels",
-                                tooltip = "Randomise characters and digits in labels",
-                                value = bind 'obfuscate_labels',
-                                enabled = bind 'label_image',
-                        },
-                        f:checkbox {
-                                title = LOC "$$$/FaceLabelling/ExportDialog/obfuscate_image=Obfuscate image",
-                                tooltip = "Fade output image",
-                                value = bind 'obfuscate_image',
-                        },
-                        f:checkbox {
-                                title = LOC "$$$/FaceLabelling/ExportDialog/remove_exif=Remove exif",
-                                tooltip = "Remove exif metadata",
-                                value = bind 'remove_exif',
-                        },
-                    }, -- group_box
-                    f:group_box {
-                        title = LOC "$$$/FaceLabelling/ExportDialog/ImageOptions=Image options",
-                        f:checkbox {
-                                title = LOC "$$$/FaceLabelling/ExportDialog/ImageCrop=Apply crop",
-                                tooltip = "Apply crop (if present) as per EXIF",
-                                value = false, -- bind 'crop_image',
-                                enabled = false, -- bind 'label_image', -- functionality not yet implemented
-                        },
-                    }, -- group_box
-                }, -- row
-            }, -- group_box
+                exportLabeledImageView(f, propertyTable),
+            }, -- view
             
-            f:group_box { -- export thumbnail images
-                title = "Export thumbnail images",
+            f:separator { fill_horizontal = 1 },
+            f:view {
                 fill_horizontal = 1,
-                f:row { -- config options
-                    f:checkbox {
-                        title = LOC "$$$/FaceLabelling/ExportDialog/drawLabelText=Export thumbnail images",
-                            value = bind 'export_thumbnails',
-                    },
-                    f:group_box {
-                        title = LOC "$$$/FaceLabelling/ExportDialog/thumbnailFilenameOptions=Thumbnail filename options",
-                        f:radio_button {
-                            title = 'Region name' ,
-                            value = bind 'thumbnails_filename_option',
-                            checked_value = 'RegionName',
-                            enabled = bind 'export_thumbnails',
-                        },
-                        f:radio_button {
-                            title = 'Filename + region number' ,
-                            value = bind 'thumbnails_filename_option',
-                            checked_value = 'RegionNumber',
-                            enabled = bind 'export_thumbnails',
-                        },
-                        f:radio_button {
-                            title = 'Filename uniquified' ,
-                            value = bind 'thumbnails_filename_option',
-                            checked_value = 'FileUnique',
-                            enabled = bind 'export_thumbnails',
-                        },
-                    }, -- group_box
-                    f:group_box {
-                        title = LOC "$$$/FaceLabelling/ExportDialog/thumbnail_folder=Thumbnail sub-folder",
-                        f:radio_button {
-                            title = 'thumb sub-folder' ,
-                            value = bind 'thumbnails_folder_option',
-                            checked_value = 'ThumbnailsThumbFolder',
-                            enabled = bind 'export_thumbnails',
-                        },
-                        f:radio_button {
-                            title = 'no sub-folder' ,
-                            value = bind 'thumbnails_folder_option',
-                            checked_value = 'ThumbnailsNoFolder',
-                            enabled = bind 'export_thumbnails',
-                        },
-                    }, -- group_box
-                }, -- row
-            }, -- group_box
+                exportLabellingView(f, propertyTable),
+            }, -- view
+            
+            f:separator { fill_horizontal = 1 },
+            f:view {
+                fill_horizontal = 1,
+                exportLabelSettingsView(f, propertyTable),
+            }, -- view
+            
+            f:separator { fill_horizontal = 1 },
+            f:view {
+                fill_horizontal = 1,
+                exportThumbnailsView(f, propertyTable),
+            }, -- view
             
             f:separator { fill_horizontal = 1 },
             f:view {
                 fill_horizontal = 1,
                 exportStatusView(f, propertyTable),
             }, -- view
+            
+            f:push_button {
+                title = 'Reset to default settings',
+                action = function()
+                    resetExportPresetFields(propertyTable)
+                end,
+            },
 
         }, -- structure within result
     } -- result

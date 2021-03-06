@@ -97,6 +97,9 @@ end
 
 function logger.writeLog(level, message)
 	if level <= log_level_threshold then
+	    if type(message) == 'boolean' then
+	        message = tostring(message)
+	    end
 		myLogger:trace(level .. " : " .. message)
 	end
 end

@@ -124,9 +124,14 @@ function _extract_face_regions(results)
     logger.writeLog(3, "_extract_face_regions")
     if results.RegionsAbsoluteNotFocus then
         local regionsInfo = results.RegionsAbsoluteNotFocus
-        photoSize.width  = regionsInfo.ImageInfo.ImageWidth
-        photoSize.height = regionsInfo.ImageInfo.ImageHeight
-        photoSize.orient = regionsInfo.ImageInfo.Orientation
+        photoSize.width   = regionsInfo.ImageInfo.ImageWidth
+        photoSize.height  = regionsInfo.ImageInfo.ImageHeight
+        photoSize.orient  = regionsInfo.ImageInfo.Orientation
+        photoSize.CropX   = ifnil(regionsInfo.ImageInfo.CropX, 0)
+        photoSize.CropY   = ifnil(regionsInfo.ImageInfo.CropY, 0)
+        photoSize.CropW   = ifnil(regionsInfo.ImageInfo.CropW, photoSize.width)
+        photoSize.CropH   = ifnil(regionsInfo.ImageInfo.CropH, photoSize.height)
+        photoSize.HasCrop = ifnil(regionsInfo.ImageInfo.HasCrop, false)
         
         if regionsInfo.RegionList and #regionsInfo.RegionList > 0 then 
             local regionList = regionsInfo.RegionList

@@ -49,6 +49,10 @@ require "Utils.lua"
 -- from Lightroom Plug-in Manager, before export
 local prefs = LrPrefs.prefsForPlugin()
 
+
+--============================================================================--
+-- Preferences for Plug-in Manager dialog
+--------------------------------------------------------------------------------
 if MAC_ENV then
     default_exiftool_app      = LrPathUtils.child(_PLUGIN.path, 'Mac/ExifTool/exiftool')
     default_imagemagick_app   = "/usr/local/bin/magick"
@@ -59,62 +63,67 @@ else
     default_image_convert_app = "C:/Program Files/ImageMagick-7.0.10-Q16-HDRI/convert.exe"
 end
 
-local FLEUrl = "https://github.com/colin0brass/FaceLabellingExportLrPlugin"
-
---============================================================================--
--- Initialise preferences
-
 -- Log export session to file for diagnostics & debug
 -- Generally saved to Documents/LrClassicLogs
 prefs.logger_filename    = "FaceLabellingExport"
 prefs.logger_verbosity   = ifnil(prefs.logger_verbosity,   2 ) -- 0 is nothing except errors; 2 is normally sensible; 5 for everything
 
 -- Plug-in web URL
-prefs.FLEUrl = FLEUrl
+prefs.FLEUrl = "https://github.com/colin0brass/FaceLabellingExportLrPlugin"
 
 -- Helper apps
 prefs.exifToolApp        = ifnil(prefs.exifToolApp,     default_exiftool_app)
 prefs.imageMagickApp     = ifnil(prefs.imageMagickApp,  default_imagemagick_app)
 prefs.imageConvertApp    = ifnil(prefs.imageConvertApp, default_image_convert_app)
 
--- Export preferences to copy into ExportParams
-prefs.label_image        = ifnil(prefs.label_image,         true )
-prefs.draw_label_text    = ifnil(prefs.draw_label_text,     true )
-prefs.draw_face_outlines = ifnil(prefs.draw_face_outlines,  false)
-prefs.draw_label_boxes   = ifnil(prefs.draw_label_boxes,    false)
--- Obfuscation preferences to copy into ExportParams
-prefs.obfuscate_labels   = ifnil(prefs.obfuscate_labels,    false)
-prefs.obfuscate_image    = ifnil(prefs.obfuscate_image,     false)
-prefs.remove_exif        = ifnil(prefs.remove_exif,         false)
--- Crop preferences to copy into ExportParams
-prefs.crop_image         = ifnil(prefs.crop_image,          false)
--- Export thumbnails
-prefs.export_thumbnails  = ifnil(prefs.export_thumbnails,   false)
-prefs.thumbnails_filename_option = ifnil(prefs.thumbnails_filename_option, 'RegionNumber')
-prefs.thumbnails_folder_option = ifnil(prefs.thumbnails_folder_option, 'ThumbnailsThumbFolder')
 
--- Preferences; not currently copied into ExportParams since not edited through UI
--- Label preferences; not yet configurable through UI
-if MAC_ENV then -- unfortunately not all same fonts available on Mac & Win
-    prefs.font_type                 = 'Courier'
-else -- windows
-    prefs.font_type                 = 'Courier-New'
+--============================================================================--
+-- Preferences for export dialog
+--------------------------------------------------------------------------------
+preference_table = {
+    -- Export preferences
+	{ key = 'label_image', 	        default = true },
+	{ key = 'draw_label_text', 	    default = true },
+	{ key = 'draw_face_outlines', 	default = false },
+	{ key = 'draw_label_boxes', 	default = false },
+	{ key = 'crop_image', 	        default = true },
+
+    -- Obfuscation preferences
+    { key = 'obfuscate_labels', 	default = false },
+	{ key = 'obfuscate_image', 	    default = false },
+	{ key = 'remove_exif', 	        default = true },
+	
+    -- Labelling preferences - font
+    { key = 'font_type', 	                      default = MAC_ENV and 'Courier' or 'Courier-New' },
+	{ key = 'label_size_option', 	              default = 'LabelDynamicFontSize' },
+	{ key = 'label_font_size_fixed', 	          default = 60 },
+	{ key = 'font_colour', 	                      default = 'white' },
+	{ key = 'label_undercolour',                  default = '#00000080' },
+	{ key = 'font_line_width', 	                  default = 1 },
+	{ key = 'test_label', 	                      default = 'Test Label' }, -- used to determine label font size
+	{ key = 'label_width_to_region_ratio_small',  default = 1.5 },
+	{ key = 'label_width_to_region_ratio_large',  default = 0.5 },
+	{ key = 'image_width_to_region_ratio_small',  default = 20 },
+	{ key = 'image_width_to_region_ratio_large',  default = 5 },
+	
+    -- Labelling preferences - labels
+	{ key = 'label_auto_optimise', default = true },
+	{ key = 'label_outline_colour', default = 'red' },
+	{ key = 'face_outline_colour', default = 'blue' },
+	{ key = 'label_outline_line_width', default = 1 },
+	{ key = 'face_outline_line_width', default = 2 },
+	{ key = 'image_margin', default = 5 },
+	{ key = 'default_position', default = 'below' },
+	{ key = 'default_num_rows', default = 3 },
+	{ key = 'default_align', default = 'center' },
+	
+    -- Export thumbnails preferences
+	{ key = 'export_thumbnails', default = false },
+	{ key = 'thumbnails_filename_option', default = 'RegionNumber' },
+	{ key = 'thumbnails_folder_option', default = 'ThumbnailsThumbFolder' },
+}
+
+-- Initialise prefs from table definition
+for i, list_value in pairs(preference_table) do
+    prefs[list_value.key] = ifnil(prefs[list_value.key], preference_table[list_value.key])
 end
-prefs.font_colour               = 'white'
-prefs.font_line_width           = 1
-prefs.default_position          = 'below'
-prefs.default_num_rows          = 3
-prefs.default_align             = 'center'
--- Line drawing preferences; not yet configurable through UI
-prefs.label_outline_colour      = 'red'
-prefs.label_outline_line_width  = 1
-prefs.face_outline_colour       = 'blue'
-prefs.face_outline_line_width   = 2
--- Image handling preferences; not yet configurable through UI
-prefs.image_margin              = 5 -- don't let labels go right to the edge of the image
--- Label size preferences; not yet configurable through UI
-prefs.image_width_to_region_ratio_small = 20 -- to determine label text size for small images
-prefs.image_width_to_region_ratio_large = 5 -- and larger images
-prefs.label_width_to_region_ratio_small = 2 -- ratio of label width to region width for small regions
-prefs.label_width_to_region_ratio_large = 0.5 -- and for larger regions
-prefs.test_label                        = 'Test Label' -- used to determine label font size
