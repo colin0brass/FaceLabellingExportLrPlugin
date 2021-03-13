@@ -358,7 +358,7 @@ function exportLabellingView(f, propertyTable)
                             place_horizontal = 0.5,
                             min = 1,
                             max = 10,
-                            precision = 1,
+                            precision = 0,
                             increment = 1,
                             value = bind('label_outline_line_width'),
                             enabled = true,
@@ -383,7 +383,7 @@ function exportLabellingView(f, propertyTable)
                             place_horizontal = 0.5,
                             min = 1,
                             max = 10,
-                            precision = 1,
+                            precision = 0,
                             increment = 1,
                             value = bind('face_outline_line_width'),
                             enabled = true,
@@ -451,7 +451,7 @@ function exportLabellingView(f, propertyTable)
                             place_horizontal = 0.5,
                             min = 1,
                             max = 4,
-                            precision = 1,
+                            precision = 0,
                             increment = 1,
                             value = bind('default_num_rows'),
                             enabled = bind('draw_label_text'),
@@ -480,7 +480,7 @@ function exportLabellingView(f, propertyTable)
                         place_horizontal = 0.5,
                         min = 1,
                         max = 100,
-                        precision = 1,
+                        precision = 0,
                         increment = 1,
                         value = bind('image_margin'),
                         enabled = bind('label_auto_optimise'),
@@ -570,7 +570,7 @@ function exportLabelSettingsView(f, propertyTable)
                         place_horizontal = 0.5,
                         min = 1,
                         max = 10,
-                        precision = 1,
+                        precision = 0,
                         increment = 1,
                         value = bind('font_line_width'),
                         enabled = true,
@@ -629,7 +629,7 @@ function exportLabelSettingsView(f, propertyTable)
                 },
                 f:row {
                     f:edit_field {
-                        width_in_digits = 3,
+                        width_in_digits = 4,
                         place_horizontal = 0.5,
                         min = 0.1,
                         max = 10,
@@ -660,7 +660,7 @@ function exportLabelSettingsView(f, propertyTable)
                 },
                 f:row {
                     f:edit_field {
-                        width_in_digits = 3,
+                        width_in_digits = 4,
                         place_horizontal = 0.5,
                         min = 0.1,
                         max = 10,
@@ -701,7 +701,7 @@ function exportLabelSettingsView(f, propertyTable)
                 },
                 f:row {
                     f:edit_field {
-                        width_in_digits = 3,
+                        width_in_digits = 4,
                         place_horizontal = 0.5,
                         min = 0.5,
                         max = 20,
