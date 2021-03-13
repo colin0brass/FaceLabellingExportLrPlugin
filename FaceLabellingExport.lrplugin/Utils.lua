@@ -298,3 +298,12 @@ return LrFunctionContext.callWithContext ("", function (context)
         
     return exitStatus, output, errOutput
     end) end
+
+--------------------------------------------------------------------------------
+-- Number rounding to decimal places
+-- http://lua-users.org/wiki/SimpleRound
+
+function round(num, numDecimalPlaces)
+    local mult = 10^(numDecimalPlaces or 0)
+    return math.floor(num * mult + 0.5) / mult
+end
