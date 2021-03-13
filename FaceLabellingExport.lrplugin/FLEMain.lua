@@ -104,14 +104,6 @@ function FLEMain.renderPhoto(srcPath, renderedPath)
     init()
     
     -- create summary of people from regions
-    
-    -- ==============================================================================
-    -- == this version processes from the *source* photo, not the *exported* photo ==
-    -- ==============================================================================
-    --face_regions, photoDimension = getRegions(srcPath)
-    -- ======================================================================================
-    -- == this version processes from the *exported* photo which should be the 'right' way ==
-    -- ======================================================================================
     face_regions, photoDimension = getRegions(renderedPath)
 
     logger.writeTable(4, face_regions) -- write to log for debug
@@ -180,7 +172,6 @@ function FLEMain.export_thumbnail_images(people, photoDimension, photoPath)
         
         -- output file
         command_string = "-write " .. '"' .. output_file_with_path .. '"'
-        --command_string = "-outfile " .. '"' .. output_file_with_path .. '"'
         FLEImageMagickAPI.add_command_string(labelling_context.imageMagickHandle, command_string)
     
         -- execute ImageMagick commands
@@ -277,7 +268,6 @@ function FLEMain.export_labeled_image(people, photoDimension, photoPath)
                                                local_exportParams.font_colour,
                                                local_exportParams.label_undercolour)
                 FLEImageMagickAPI.add_command_string(labelling_context.imageMagickHandle, command_string)
-                --text = label.text
                 text = text_line_wrap(label.text, label.num_rows)
                 gravity = translate_align_to_gravity(label.text_align)
                 command_string = string.format('-background none -size %dx -gravity %s caption:"%s"',
@@ -550,39 +540,71 @@ function determine_label_font_size()
             image_to_region_width_ratio = image_width / average_region_size
             image_to_region_width_ratio_normalised = (image_to_region_width_ratio - local_exportParams.image_width_to_region_ratio_large)
                                         / (local_exportParams.image_width_to_region_ratio_small - local_exportParams.image_width_to_region_ratio_large)
-            logger.writeLog(5, "determine_label_font_size: image_to_region_width_ratio_normalised " .. image_to_region_width_ratio_normalised)
             if image_to_region_width_ratio_normalised > 1 then
-                image_to_region_width_ratio = 1
+                image_to_region_width_ratio_normalised = 1
             elseif image_to_region_width_ratio_normalised < 0 then
-                image_to_region_width_ratio = 0
+                image_to_region_width_ratio_normalised = 0
             end
+            
+            logger.writeLog(5, "determine_label_font_size: image_to_region_width_ratio_normalised " .. image_to_region_width_ratio_normalised)
             label_size_ratio = image_to_region_width_ratio_normalised * (local_exportParams.label_width_to_region_ratio_small - local_exportParams.label_width_to_region_ratio_large) + local_exportParams.label_width_to_region_ratio_large
             logger.writeLog(5, "determine_label_font_size: label_size_ratio " .. label_size_ratio)
-            target_width = average_region_size * label_size_ratio
+            target_width = math.min(average_region_size * label_size_ratio, image_width)
+            logger.writeLog(5, "target_width " .. target_width)
             
-            success, test_label_w, test_label_h = get_label_size(local_exportParams.test_label, 
-                                                        local_exportParams.font_type,
-                                                        font_size,
-                                                        local_exportParams.font_line_width)
-            if success then
-                if test_label_w < target_width then -- smaller than target
-                    while (test_label_w < target_width) do
-                        font_size = font_size + 2
-                        success, test_label_w, test_label_h = get_label_size(local_exportParams.test_label, 
-                                                                    local_exportParams.font_type,
-                                                                    font_size,
-                                                                    local_exportParams.font_line_width)
+            local search_phase = 'start' -- initial value
+            local success = true -- initial value
+            local secondary_iterations = 0 -- initial value
+            local font_size_delta = 0 -- initial value
+            local font_size_delta_limit = 2 -- using limit as defence against infinite loop due to rounding
+            local secondary_iteration_limit = 10 -- using iteration limit as defence against infinute loop due to rounding
+            local search_increasing = true -- initial value
+
+            while ( (search_phase ~= 'end') and success ) do
+                local search_increasing_update = true -- initial value
+                local direction_change = false -- initial value
+                
+                if search_phase == 'primary_coarse_search' then
+                    if search_increasing then
+                        font_size_delta = font_size -- doubling on the way up
+                    else
+                        font_size_delta = math.floor(font_size/2) -- halving on the way down
                     end
-                else -- larger than target
-                    while (test_label_w > target_width) do
-                        font_size = font_size - 2
-                        success, test_label_w, test_label_h = get_label_size(local_exportParams.test_label, 
-                                                                    local_exportParams.font_type,
-                                                                    font_size,
-                                                                    local_exportParams.font_line_width)
+                elseif search_phase == 'secondary_refinement' then
+                    if search_increasing then delta_multiple = 0.5 else delta_multiple = -0.5 end
+                    font_size_delta = math.floor(math.abs(font_size_delta) * delta_multiple)
+                else
+                    size_multiple = 1
+                end
+                
+                font_size = font_size + font_size_delta
+                success, test_label_w, test_label_h = get_label_size(local_exportParams.test_label, 
+                                                            local_exportParams.font_type,
+                                                            font_size,
+                                                            local_exportParams.font_line_width)
+                if search_phase ~= 'start' then
+                    search_increasing_update = (test_label_w < target_width)
+                    direction_change = (search_increasing_update ~= search_increasing)
+                    logger.writeLog(5, search_phase .. '; test_label_w:' .. test_label_w .. ' ; target_width:' .. target_width)
+                end
+                
+                if search_phase == 'start' then
+                    search_phase = 'primary_coarse_search'
+                elseif search_phase == 'primary_coarse_search' then
+                    if direction_change then search_phase = 'secondary_refinement' end
+                elseif search_phase == 'secondary_refinement' then
+                    if ( (math.abs(font_size_delta) < font_size_delta_limit) or (secondary_iterations > secondary_iteration_limit) ) then
+                        search_phase = 'end'
                     end
-                end -- if test_label_w < target_width; else
-            end -- success
+                    secondary_iterations = secondary_iterations + 1 -- increment loop count as defence against infinute loop due to rounding
+                else
+                    logger.writeLog(0, "determine_label_font_size: unknown search phase: " .. search_phase)
+                    search_phase = 'end'
+                end
+                
+                search_increasing = search_increasing_update
+                
+            end -- while search_phase
         end -- if average_region_size and average_region_size > 0
     end -- if
 
@@ -666,6 +688,9 @@ end
 function optimise_single_label(label, experiment_list)
     local local_experiment_list = table_copy(experiment_list)
     local clash = true -- initial value
+    local photoDimension = labelling_context.photo_dimensions
+    local image_width = ifnil(photoDimension.CropW, photoDimension.width)
+    
     if local_experiment_list and #local_experiment_list>0 then
         local experiment = table.remove(local_experiment_list)
         logger.writeLog(4, "- optimise_single_label - experiment: " .. experiment)
@@ -701,12 +726,16 @@ function optimise_single_label(label, experiment_list)
                                            try_num_rows,
                                            nil,
                                            nil)
-                clash = check_label_clash(label)
-                label.position_clash = clash
-                if not clash then
-                    logger.writeLog(4, "- - successful experiment: " .. label.position .. ", rows=" .. label.num_rows)
-                    break -- stop optimising when found a working configuration
-                end
+                if label.w > image_width then -- label is wider than the image
+                    clash = true
+                else
+                    clash = check_label_clash(label)
+                    label.position_clash = clash
+                    if not clash then
+                        logger.writeLog(4, "- - successful experiment: " .. label.position .. ", rows=" .. label.num_rows)
+                        break -- stop optimising when found a working configuration
+                    end
+                end -- if label.w > image_width; else
             end -- if clash
         end -- for i, option in pairs(options_list)
         
@@ -720,29 +749,62 @@ end
 
 function optimise_labels(attempt_number)
     local labels = labelling_context.labels
-    local num_optimisations = 2
     local experiment_list = label_config.format_experiment_list
-    if not attempt_number then attempt_number = 1 end
+    local finished = false -- initial value
     
-    if attempt_number == 2 then -- on second attempt, reverse the order
-        list = list_reverse(list)
+    if (not attempt_number) or (attempt_number == 1) then
+        attempt_number = 1 -- initial value
+        logger.writeLog(4, "- optimise_labels, iteration " .. attempt_number .. " ; standard list")
+    elseif attempt_number == 2 then -- on second attempt, reverse the order
+        labels = list_reverse(labels)
+        logger.writeLog(4, "- optimise_labels, iteration " .. attempt_number .. " ; reversed list")
+    elseif attempt_number == 3 then -- on third attempt, make font size smaller and try all labels again
+        label_config.font_size = math.floor(label_config.font_size * 0.75)
+        for i, label in pairs(labelling_context.labels) do
+            label.position_clash = true -- set to re-try all labels
+            label = set_label_position(label, nil, nil, nil, label_config.font_size)
+        end
+        logger.writeLog(4, "- optimise_labels, iteration " .. attempt_number .. " ; smaller font")
+    elseif attempt_number == 4 then -- anoth attempt, make font size smaller still
+        label_config.font_size = math.floor(label_config.font_size * 0.75)
+        for i, label in pairs(labelling_context.labels) do
+            label.position_clash = true -- set to re-try all labels
+            label = set_label_position(label, nil, nil, nil, label_config.font_size)
+        end
+        logger.writeLog(4, "- optimise_labels, iteration " .. attempt_number .. " ; even smaller font")
+    elseif attempt_number == 5 then -- final attempt, make font size smaller still
+        label_config.font_size = math.floor(label_config.font_size * 0.75)
+        for i, label in pairs(labelling_context.labels) do
+            label.position_clash = true -- set to re-try all labels
+            label = set_label_position(label, nil, nil, nil, label_config.font_size)
+        end
+        logger.writeLog(4, "- optimise_labels, iteration " .. attempt_number .. " ; even even smaller font")
+    else
+        finished = true
     end
     
-    overall_clash = false -- initial value
-    for i, label in pairs(labels) do
-        if label.position_clash then
-            logger.writeLog(4, "= Optimising label position: " .. label.text)
-            logger.writeTable(4, experiment_list)
-            if attempt_number <= num_optimisations then
+    if not finished then
+        overall_clash = false -- initial value
+        for i, label in pairs(labels) do
+            if label.position_clash then
+                logger.writeLog(4, "= Optimising label position: " .. label.text)
+                logger.writeTable(4, experiment_list)
                 clash = optimise_single_label(label, experiment_list)
                 if clash then overall_clash = true end
-            end
+            else
+                logger.writeLog(4, "= Label ok: " .. label.text)
+            end -- if label.position_clash; else
+        end -- for i, label
+
+        if overall_clash then
+            optimise_labels(attempt_number+1)
+        else
+            logger.writeLog(5, "- optimise_labels, finished successfully")
         end
-    end
+    end -- if not finished
+
+    logger.writeLog(5, "- optimise_labels, finished")
     
-    if overall_clash and (attempt_number < num_optimisations) then
-        optimise_labels(attempt_number+1)
-    end
 end
 
 --------------------------------------------------------------------------------

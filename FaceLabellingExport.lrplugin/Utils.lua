@@ -79,6 +79,7 @@ function text_line_wrap(text, num_lines)
     cumulative_width = {}
     cumulative_width[1] = 0
     for i, word in pairs(words) do
+        --logger.writeLog(5, "'" .. word .. "'")
         table.insert(cumulative_width, cumulative_width[#cumulative_width] + string.len(word))
     end
     total_width = cumulative_width[#cumulative_width] + #words - 1 -- len words -1 space
@@ -126,8 +127,8 @@ function text_line_wrap(text, num_lines)
         sliced = {}
         for i=a+1, b do sliced[#sliced+1] = words[i] end
         line_string = table.concat(sliced, ' ')
-        --logger.writeLog(1, line_string)
-        table.insert(lines_reverse_order, ' ' .. line_string)
+        --logger.writeLog(5, "'" .. line_string .. "'")
+        table.insert(lines_reverse_order, line_string) -- was: ' ' .. line_string
         b = a
     end
     
