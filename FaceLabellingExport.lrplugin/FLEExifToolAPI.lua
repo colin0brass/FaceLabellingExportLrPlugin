@@ -148,7 +148,7 @@ function _extract_face_regions(results)
                     personTag.y 	    = tonumber(region.Area.Y)
                     personTag.w 		= tonumber(region.Area.W)
                     personTag.h 		= tonumber(region.Area.H)
-                    personTag.name 		= region.Name
+                    personTag.name 		= tostring(region.Name)
     
                     personTags[face_num] = personTag 
                     
