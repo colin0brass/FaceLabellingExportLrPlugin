@@ -104,14 +104,6 @@ function FLEMain.renderPhoto(srcPath, renderedPath)
     init()
     
     -- create summary of people from regions
-    
-    -- ==============================================================================
-    -- == this version processes from the *source* photo, not the *exported* photo ==
-    -- ==============================================================================
-    --face_regions, photoDimension = getRegions(srcPath)
-    -- ======================================================================================
-    -- == this version processes from the *exported* photo which should be the 'right' way ==
-    -- ======================================================================================
     face_regions, photoDimension = getRegions(renderedPath)
 
     logger.writeTable(4, face_regions) -- write to log for debug
@@ -180,7 +172,6 @@ function FLEMain.export_thumbnail_images(people, photoDimension, photoPath)
         
         -- output file
         command_string = "-write " .. '"' .. output_file_with_path .. '"'
-        --command_string = "-outfile " .. '"' .. output_file_with_path .. '"'
         FLEImageMagickAPI.add_command_string(labelling_context.imageMagickHandle, command_string)
     
         -- execute ImageMagick commands
@@ -277,7 +268,6 @@ function FLEMain.export_labeled_image(people, photoDimension, photoPath)
                                                local_exportParams.font_colour,
                                                local_exportParams.label_undercolour)
                 FLEImageMagickAPI.add_command_string(labelling_context.imageMagickHandle, command_string)
-                --text = label.text
                 text = text_line_wrap(label.text, label.num_rows)
                 gravity = translate_align_to_gravity(label.text_align)
                 command_string = string.format('-background none -size %dx -gravity %s caption:"%s"',
