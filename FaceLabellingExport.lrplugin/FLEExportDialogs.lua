@@ -48,6 +48,10 @@ require("Utils.lua")
 --============================================================================--
 -- Local variables
 
+-- Plugin info, for access to VERSION
+local Info              = require("Info.lua")
+local versionString = (Info.VERSION.major or '0') .. '.' .. (Info.VERSION.minor or '0')
+
 FLEExportDialogs = {}
 
 exiftool_url = "https://exiftool.org"
@@ -148,18 +152,19 @@ local function coupleSliders_regionLargeAdjusted( propertyTable )
 end
 
 --------------------------------------------------------------------------------
+-- Observer function to round slider value to specified number of decimal places
+local function roundOneDecimalPlace(properties, key, value)
+    properties[key] = round(properties[key], 1)
+end
+
+--------------------------------------------------------------------------------
 -- Reset Export Preset Fields to default values
 
 function resetExportPresetFields( propertyTable )
     logger.writeLog(3, "resetExportPresetFields")
-    --logger.writeTable(3, preference_table)
     for i, list_value in pairs(preference_table) do
-        --if propertyTable[list_value.key] == nil then
-        --    logger.writeLog(4, list_value.key .. ' not found for reset')
-        --else
         propertyTable[list_value.key] = list_value.default
         logger.writeLog(4, list_value.key .. ' reset to ' .. tostring(list_value.default))
-        --end
     end
 end
 
@@ -169,6 +174,10 @@ end
 function FLEExportDialogs.startDialog( propertyTable )
     local prefs = LrPrefs.prefsForPlugin()
     
+    logger.writeLog(0, "Plugin name: " .. Info.LrPluginName)
+    logger.writeLog(0, "Plugin version: " .. versionString)
+    logger.writeLog(0, "Logging level: " .. tostring(logger.get_log_level()))
+
     -- Plug-in Manager configuration
     -- copy preferences from configuration in Lightroom Plug-in Manager
     -- Helper apps
@@ -193,9 +202,15 @@ function FLEExportDialogs.startDialog( propertyTable )
      propertyTable:addObserver( 'label_width_to_region_ratio_small', coupleSliders_ratioSmallAdjusted )
      propertyTable:addObserver( 'label_width_to_region_ratio_large', coupleSliders_ratioLargeAdjusted )
      propertyTable:addObserver( 'image_width_to_region_ratio_small', coupleSliders_regionSmallAdjusted )
-     propertyTable:addObserver( 'label_width_to_region_ratio_large', coupleSliders_regionLargeAdjusted )
+     propertyTable:addObserver( 'image_width_to_region_ratio_large', coupleSliders_regionLargeAdjusted )
 
-    updateExportStatus( propertyTable )
+     -- limit precision on slider values
+     propertyTable:addObserver( 'label_width_to_region_ratio_small', roundOneDecimalPlace )
+     propertyTable:addObserver( 'label_width_to_region_ratio_large', roundOneDecimalPlace )
+     propertyTable:addObserver( 'image_width_to_region_ratio_small', roundOneDecimalPlace )
+     propertyTable:addObserver( 'image_width_to_region_ratio_large', roundOneDecimalPlace )
+
+     updateExportStatus( propertyTable )
 end
 
 --------------------------------------------------------------------------------

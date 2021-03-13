@@ -83,6 +83,9 @@ local function updatePluginStatus( propertyTable )
             propertyTable.imageConvertAppFoundStatus = "Found"
         end
         
+        -- Update from latest properties
+        logger.set_log_level(propertyTable.logger_verbosity)
+        
     until true -- only go through once
     
     if message then

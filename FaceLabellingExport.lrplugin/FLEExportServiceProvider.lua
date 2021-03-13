@@ -43,7 +43,6 @@ local LrTasks           = import("LrTasks")
 
 --============================================================================--
 -- Local imports
-require "FLEExportDialogs.lua"
 
 -- persistent plug-in preferences
 local prefs = LrPrefs.prefsForPlugin()
@@ -51,6 +50,8 @@ local prefs = LrPrefs.prefsForPlugin()
 -- Log export session to file for diagnostics & debug
 logger = require("Logger.lua")
 logger.init(prefs.logger_filename, prefs.logger_verbosity) -- arguments: log filename, log_level threshold (lowest is most significant)
+
+require "FLEExportDialogs.lua"
 
 FLEMain = require "FLEMain.lua"
 
@@ -66,8 +67,8 @@ FLEMain = require "FLEMain.lua"
 function processRenderedPhotos( functionContext, exportContext )
 
     -- Update from latest config
-    logger.set_log_level(prefs.logger_verbosity)
-
+    --logger.set_log_level(prefs.logger_verbosity)
+    
     logger.writeLog(2, "processRenderedPhotos")
     
     -- Make a local reference to the export parameters.
