@@ -23,16 +23,20 @@ The plug-in did the following:
 There is certainly lots that can be improved (see some thoughts listed further below), but hopefully this can be useful.
 
 ## Status
-Currently this is an early-life prototype with various known and suspected limitations.
+This plug-in was first created in August 2020, and has limited use so far, 
+but does seem to be working for a few users across Mac and Windows platforms.
 
-It works for me, on both Mac and Windows, but I have not yet given it any extensive robustness testing, so I fully
-expect there will be issues in wider deployment.
+Please also be aware that I only have limited image test-cases, so I fully expect there to still be limitations and 
+issues across a broader set of image formats and exif variations.
 
-I strongly advise you only try this if you are comfortable with computing and scripting, and prepared for some 
-failures and debug.
+In the first releases I strongly advised this only for the intrepid who were comfortable with computing and scripting,
+and prepared for some failures and debug.
 
-For the less intrepid, I do plan to do further testing and development, though I can't really put a timescale on it 
-due to real-world committments.
+I suspect now a wider set of people _should_ be able to use it, however I'm sure there will still be aspects of
+deployment and compatibility that I haven't come across yet and therefore will cause issues and need me to fix them.
+
+Please feel free to raise issues in github, and give information about the version, platform and more specific details
+to help with diagnosis and fixing.
 
 ## Quick-Start Notes
 Abbreviated instructions:
@@ -65,9 +69,27 @@ downloaded and installed.
 Download and unzip (if zipped) this plug-in to a suitable location on your computer.
 * e.g. from github, see "Code" drop-down, and select "Download ZIP"
 
+**Note**
+* Windows users are advised _not_ to install the plugin under Lightroom folder in Program Files (causes problems)
+
 Add the plug-in into Lightroom Classic
 * In Lightroom, go to File -> Plug-in Manager
 * From there, "Add", select the new plug-in and "Add Plug-in"
+* Note, this tells Lightroom where to find the plug-in, and will use from there. It doesn't copy it elsewhere, so don't delete the files!
+
+### Plug-in update
+It will often be sufficient to download new version, put in same location to overwrite old files,
+and either restart Lightroom Classic, or "Reload Plug-in" in Plug-in Manager, or "Remove" and then "Add" in Plug-in Manager.
+To be safe and tidy in case some old files in the plug-in become obsolete, it could be good to delete the old plug-in folder from time to time before installing new version.
+Check the plug-in version shown under Lightroom Plug-in Manager to see if update has been correctly installed and loaded
+(note that this version information is intended to be aligned with github release & tag numbers, however is separately coded so on occasion I might miss updating it)
+
+### Plug-in removal
+If you are done with this plug-in and want to remove it:
+* In Lightroom, go to File -> Plug-in Manager
+* From there, take note of the plug-in file path shown in "Status", so you know where to find and delete the files
+* You can then select the plug-in from the list and click "Remove"
+* Now you can delete the files from the path you noted above
 
 ### Plug-in configuration
 Once the plug-in is installed, please check its configuration in Plug-in Manager.
