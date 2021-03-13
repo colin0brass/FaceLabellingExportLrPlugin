@@ -688,6 +688,9 @@ end
 function optimise_single_label(label, experiment_list)
     local local_experiment_list = table_copy(experiment_list)
     local clash = true -- initial value
+    local photoDimension = labelling_context.photo_dimensions
+    local image_width = ifnil(photoDimension.CropW, photoDimension.width)
+    
     if local_experiment_list and #local_experiment_list>0 then
         local experiment = table.remove(local_experiment_list)
         logger.writeLog(4, "- optimise_single_label - experiment: " .. experiment)
@@ -723,12 +726,16 @@ function optimise_single_label(label, experiment_list)
                                            try_num_rows,
                                            nil,
                                            nil)
-                clash = check_label_clash(label)
-                label.position_clash = clash
-                if not clash then
-                    logger.writeLog(4, "- - successful experiment: " .. label.position .. ", rows=" .. label.num_rows)
-                    break -- stop optimising when found a working configuration
-                end
+                if label.w > image_width then -- label is wider than the image
+                    clash = true
+                else
+                    clash = check_label_clash(label)
+                    label.position_clash = clash
+                    if not clash then
+                        logger.writeLog(4, "- - successful experiment: " .. label.position .. ", rows=" .. label.num_rows)
+                        break -- stop optimising when found a working configuration
+                    end
+                end -- if label.w > image_width; else
             end -- if clash
         end -- for i, option in pairs(options_list)
         
@@ -742,29 +749,62 @@ end
 
 function optimise_labels(attempt_number)
     local labels = labelling_context.labels
-    local num_optimisations = 2
     local experiment_list = label_config.format_experiment_list
-    if not attempt_number then attempt_number = 1 end
+    local finished = false -- initial value
     
-    if attempt_number == 2 then -- on second attempt, reverse the order
-        list = list_reverse(list)
+    if (not attempt_number) or (attempt_number == 1) then
+        attempt_number = 1 -- initial value
+        logger.writeLog(4, "- optimise_labels, iteration " .. attempt_number .. " ; standard list")
+    elseif attempt_number == 2 then -- on second attempt, reverse the order
+        labels = list_reverse(labels)
+        logger.writeLog(4, "- optimise_labels, iteration " .. attempt_number .. " ; reversed list")
+    elseif attempt_number == 3 then -- on third attempt, make font size smaller and try all labels again
+        label_config.font_size = math.floor(label_config.font_size * 0.75)
+        for i, label in pairs(labelling_context.labels) do
+            label.position_clash = true -- set to re-try all labels
+            label = set_label_position(label, nil, nil, nil, label_config.font_size)
+        end
+        logger.writeLog(4, "- optimise_labels, iteration " .. attempt_number .. " ; smaller font")
+    elseif attempt_number == 4 then -- anoth attempt, make font size smaller still
+        label_config.font_size = math.floor(label_config.font_size * 0.75)
+        for i, label in pairs(labelling_context.labels) do
+            label.position_clash = true -- set to re-try all labels
+            label = set_label_position(label, nil, nil, nil, label_config.font_size)
+        end
+        logger.writeLog(4, "- optimise_labels, iteration " .. attempt_number .. " ; even smaller font")
+    elseif attempt_number == 5 then -- final attempt, make font size smaller still
+        label_config.font_size = math.floor(label_config.font_size * 0.75)
+        for i, label in pairs(labelling_context.labels) do
+            label.position_clash = true -- set to re-try all labels
+            label = set_label_position(label, nil, nil, nil, label_config.font_size)
+        end
+        logger.writeLog(4, "- optimise_labels, iteration " .. attempt_number .. " ; even even smaller font")
+    else
+        finished = true
     end
     
-    overall_clash = false -- initial value
-    for i, label in pairs(labels) do
-        if label.position_clash then
-            logger.writeLog(4, "= Optimising label position: " .. label.text)
-            logger.writeTable(4, experiment_list)
-            if attempt_number <= num_optimisations then
+    if not finished then
+        overall_clash = false -- initial value
+        for i, label in pairs(labels) do
+            if label.position_clash then
+                logger.writeLog(4, "= Optimising label position: " .. label.text)
+                logger.writeTable(4, experiment_list)
                 clash = optimise_single_label(label, experiment_list)
                 if clash then overall_clash = true end
-            end
+            else
+                logger.writeLog(4, "= Label ok: " .. label.text)
+            end -- if label.position_clash; else
+        end -- for i, label
+
+        if overall_clash then
+            optimise_labels(attempt_number+1)
+        else
+            logger.writeLog(5, "- optimise_labels, finished successfully")
         end
-    end
+    end -- if not finished
+
+    logger.writeLog(5, "- optimise_labels, finished")
     
-    if overall_clash and (attempt_number < num_optimisations) then
-        optimise_labels(attempt_number+1)
-    end
 end
 
 --------------------------------------------------------------------------------
