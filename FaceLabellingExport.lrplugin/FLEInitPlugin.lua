@@ -42,6 +42,9 @@ local LrPrefs            = import("LrPrefs")
 -- Local imports
 require "Utils.lua"
 
+-- Log export session to file for diagnostics & debug
+logger = require("Logger.lua")
+
 --============================================================================--
 -- Local variables
 
@@ -65,20 +68,47 @@ end
 
 -- Log export session to file for diagnostics & debug
 -- Generally saved to Documents/LrClassicLogs
-prefs.logger_filename    = "FaceLabellingExport"
-prefs.logger_verbosity   = ifnil(prefs.logger_verbosity,   2 ) -- 0 is nothing except errors; 2 is normally sensible; 5 for everything
+--prefs.logger_filename    = "FaceLabellingExport"
+--prefs.logger_verbosity   = ifnil(prefs.logger_verbosity,   2 ) -- 0 is nothing except errors; 2 is normally sensible; 5 for everything
 
 -- Plug-in web URL
-prefs.FLEUrl = "https://github.com/colin0brass/FaceLabellingExportLrPlugin"
+--prefs.FLEUrl = "https://github.com/colin0brass/FaceLabellingExportLrPlugin"
 
 -- Helper apps
-prefs.exifToolApp        = ifnil(prefs.exifToolApp,     default_exiftool_app)
-prefs.imageMagickApp     = ifnil(prefs.imageMagickApp,  default_imagemagick_app)
-prefs.imageConvertApp    = ifnil(prefs.imageConvertApp, default_image_convert_app)
+--prefs.exifToolApp        = ifnil(prefs.exifToolApp,     default_exiftool_app)
+--prefs.imageMagickApp     = ifnil(prefs.imageMagickApp,  default_imagemagick_app)
+--prefs.imageConvertApp    = ifnil(prefs.imageConvertApp, default_image_convert_app)
 
+--prefs.exifToolLogFilePath= LrPathUtils.getStandardFilePath("temp")
 
 --============================================================================--
--- Preferences for export dialog
+-- Preferences for Plug-in Manager dialog
+--------------------------------------------------------------------------------
+local temp_dir_path = LrPathUtils.getStandardFilePath("temp")
+manager_table = {
+    -- Plug-in details
+    { key = 'FLEUrl',               default = "https://github.com/colin0brass/FaceLabellingExportLrPlugin", fixed = true },
+    
+    -- Helper apps
+    { key = 'exifToolApp',          default = default_exiftool_app },
+    { key = 'imageMagickApp',       default = default_imagemagick_app },
+    { key = 'imageConvertApp',      default = default_image_convert_app },
+    
+    -- Plug-in logs
+    { key = 'logger_filename',      default = "FaceLabellingExport", fixed = true },
+    { key = 'logger_verbosity',     default = 2 },
+    
+    -- ExifTool logs
+    { key = 'exifLogFilePath',      default = temp_dir_path, fixed = true },
+    { key = 'exifToolLogDelete',    default = true },
+    
+    -- ImageMagick Logs
+    { key = 'imageMagickLogFilePath', default = temp_dir_path, fixed = true },
+    { key = 'imageMagickLogDelete',   default = true },
+}
+
+--============================================================================--
+-- Preferences for Export dialog
 --------------------------------------------------------------------------------
 preference_table = {
     -- Export preferences
@@ -123,7 +153,22 @@ preference_table = {
 	{ key = 'thumbnails_folder_option', default = 'ThumbnailsThumbFolder' },
 }
 
--- Initialise prefs from table definition
-for i, list_value in pairs(preference_table) do
-    prefs[list_value.key] = ifnil(prefs[list_value.key], preference_table[list_value.key])
+--============================================================================--
+-- Initialise prefs from table definitions
+--------------------------------------------------------------------------------
+-- Plug-in Manager dialog preferences
+for i, list_value in pairs(manager_table) do
+    if list_value.fixed then -- use this to always initialise to default value
+        prefs[list_value.key] = list_value.default
+    else -- otherwise give option to preserve previous prefs value if already defined
+        prefs[list_value.key] = ifnil(prefs[list_value.key], list_value.default)
+    end
 end
+
+-- Export dialog preferences
+for i, list_value in pairs(preference_table) do
+    prefs[list_value.key] = ifnil(prefs[list_value.key], list_value.default)
+end
+
+-- Initialise logger
+logger.init(prefs.logger_filename, prefs.logger_verbosity) -- arguments: log filename, log_level threshold (lowest is most significant)

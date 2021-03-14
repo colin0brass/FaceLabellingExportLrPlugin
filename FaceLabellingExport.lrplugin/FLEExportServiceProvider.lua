@@ -47,10 +47,6 @@ local LrTasks           = import("LrTasks")
 -- persistent plug-in preferences
 local prefs = LrPrefs.prefsForPlugin()
 
--- Log export session to file for diagnostics & debug
-logger = require("Logger.lua")
-logger.init(prefs.logger_filename, prefs.logger_verbosity) -- arguments: log filename, log_level threshold (lowest is most significant)
-
 require "FLEExportDialogs.lua"
 
 FLEMain = require "FLEMain.lua"

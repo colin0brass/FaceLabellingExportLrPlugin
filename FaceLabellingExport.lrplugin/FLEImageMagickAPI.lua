@@ -48,8 +48,6 @@ require "Utils.lua"
 -- Local variables
 local FLEImageMagickAPI = {}
 
-local tmpdir = LrPathUtils.getStandardFilePath("temp")
-
 --============================================================================--
 -- Functions
 
@@ -58,11 +56,13 @@ local tmpdir = LrPathUtils.getStandardFilePath("temp")
 
 function FLEImageMagickAPI.init(prefs)
     local handle = {} -- handle
-    handle.app = prefs.imageMagickApp
+    handle.app         = prefs.imageMagickApp
     handle.convert_app = prefs.imageConvertApp
+    handle.log_delete  = prefs.imageMagickLogDelete
         
     -- create unique command file
     local dateStr = tostring(LrDate.currentTime())
+    local tmpdir = LrPathUtils.getStandardFilePath("temp")
     handle.commandFile = LrPathUtils.child(tmpdir, "ImageMagicCmds-" .. dateStr .. ".txt")
     
     -- create and truncate command file
@@ -74,13 +74,18 @@ function FLEImageMagickAPI.init(prefs)
 end
 
 function FLEImageMagickAPI.cleanup(handle, leave_command_file)
-    success = true
+    local success = true -- initial value
+    
     if handle then
-        logger.writeLog(4, "ImageMagic: cleaning-up after use")
-        if not leave_command_file then
+        if handle.log_delete then
+            logger.writeLog(4, "ImageMagic: cleaning-up after final use")
+            logger.writeLog(5, "deleting:" .. handle.commandFile)
             if LrFileUtils.exists(handle.commandFile) then
                 LrFileUtils.delete(handle.commandFile)
             end
+        else
+            logger.writeLog(3, "ImageMagic finishing: leaving final command file for inspection")
+            logger.writeLog(5, "leaving:" .. handle.commandFile)
         end
     end
     
@@ -90,8 +95,17 @@ end
 --------------------------------------------------------------------------------
 -- ImageMagick command handling
 
+function FLEImageMagickAPI.start_new_command(handle)
+    if LrFileUtils.exists(handle.commandFile) then
+        logger.writeLog(4, "ImageMagic: start_new_command by wiping contents of command file")
+        local cmdFile = io.open(handle.commandFile, "w")
+        io.close (cmdFile)
+    end
+end
+
 function FLEImageMagickAPI.add_command_string(handle, command_string)
-    success = true
+    local success = true -- initial value
+    
     if not handle then
         success = false
     else
@@ -107,27 +121,33 @@ function FLEImageMagickAPI.add_command_string(handle, command_string)
     return success
 end
 
-function FLEImageMagickAPI.execute_commands(handle, leave_command_file)
-    success = true
+function FLEImageMagickAPI.execute_commands(handle)
+    local success = true -- initial value
+    
     if not handle then
         success = false
     else
-        exe = app_exe_quote_selection_for_platform(handle.app)
         if not LrFileUtils.exists(handle.commandFile) then
             logger.writeLog(0, "Could not find ImageMagick command file:" .. handle.commandFile)
         end
         
-        command_line = exe .. " -script " .. path_quote_selection_for_platform(handle.commandFile)
-        logger.writeLog(4, "ImageMagick execute command: " .. command_line)
-        if LrTasks.execute(command_line) ~= 0 then
-            logger.writeLog(0, "Failed to contact ImageMagick Application")
+        local command = '"' .. handle.app .. '"' ..
+                        " -script " .. '"' .. handle.commandFile .. '"'
+        logger.writeLog(4, "ImageMagick execute command: " .. command)
+        -- on Windows, whole command line needs to be wrapped in an additional set of quotes
+        local exitStatus = LrTasks.execute(command_line_quote(command))
+        if exitStatus > 0 then
+            logger.writeLog(0, string.format("ImageMagick error: %s", tostring(exitStatus)))
             success = false
         end
         
         -- clean-up command file
-        if not leave_command_file then
+        if handle.log_delete then
+            --logger.writeLog(4, "ImageMagic: wipe contents of command file after use")
             local cmdFile = io.open(handle.commandFile, "w")
             io.close (cmdFile)
+        else
+            --logger.writeLog(4, "ImageMagic: leaving contents of command file after use")
         end
 
     end
@@ -136,17 +156,18 @@ function FLEImageMagickAPI.execute_commands(handle, leave_command_file)
 end
 
 function FLEImageMagickAPI.execute_convert_get_output(handle, command_string)
-    success = true
-    output = ""
+    local success = true -- initial value
+    local output = "" -- initial value
+    
     if not handle then
         success = false
     else
-        exe = app_exe_quote_selection_for_platform(handle.convert_app)
+        local command = '"' .. handle.convert_app .. '"' ..
+                        " " .. command_string
+        logger.writeLog(5, "ImageMagick execute command: " .. command)
 
-        command_line = exe .. " " .. command_string
-        logger.writeLog(5, "ImageMagick execute command: " .. command_line)
-
-        exitStatus, output, errOutput = safeExecute(command_line, true)
+        -- safeExecute function handles wrapping the whole command line in additional set of quotes for Windows platforms 
+        exitStatus, output, errOutput = safeExecute(command, true)
         if exitStatus then
             logger.writeLog(5, "ImageMagick output: " .. output)
         else

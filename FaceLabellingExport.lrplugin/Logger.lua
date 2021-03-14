@@ -51,7 +51,8 @@ local logger = {}
 filename = "logger"
 log_level_threshold = 2 -- defaut
 local myLogger = {}
-logFilePath = '' -- initial value
+
+logger.logFilePath = '' -- initial value
 
 --============================================================================--
 -- Functions
@@ -67,15 +68,15 @@ function logger.init(filename, set_log_level_threshold)
 	
     -- open and truncate log file if it already exists
 	local docdir = LrPathUtils.getStandardFilePath("documents")
-	logFilePath = LrPathUtils.child(
+	logger.logFilePath = LrPathUtils.child(
 	                    LrPathUtils.child(docdir, 'LrClassicLogs'), 
 	                    filename .. '.log')
-	if LrFileUtils.exists(logFilePath) then
-	    local file = io.open(logFilePath, "w")
+	if LrFileUtils.exists(logger.logFilePath) then
+	    local file = io.open(logger.logFilePath, "w")
 	    if file then
             io.close(file)
         end -- if file
-    end -- if LrFileUtils.exists(logFilePath)
+    end -- if LrFileUtils.exists(logger.logFilePath)
 end
 
 --------------------------------------------------------------------------------
@@ -121,7 +122,7 @@ function logger.writeTable(level, tbl, indent)
                     logger.writeTable(level, v, indent+1)
                 elseif type(v) == 'boolean' then
                     logger.writeLog(level, formatting .. tostring(v))
-                else
+                elseif type(v) ~= 'function' then -- don't try to display functions
                     logger.writeLog(level, formatting .. v)
                 end
             end

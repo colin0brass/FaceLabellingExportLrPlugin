@@ -49,9 +49,6 @@ json = require("json.lua")
 -- Local variables
 local FLEExifToolAPI = {}
 
-local tmpdir = LrPathUtils.getStandardFilePath("temp")
-local exiftool_config_file = LrPathUtils.child(_PLUGIN.path, "get_regions.config")
-
 --============================================================================--
 -- Functions
 
@@ -175,8 +172,9 @@ function _openExifTool(exportParams)
 	local handle = {} -- handle
 	local success = true -- initial value
 	
-	exe = app_exe_quote_selection_for_platform(exportParams.exifToolApp)
-	
+    local tmpdir = LrPathUtils.getStandardFilePath("temp")
+    local exiftool_config_file = LrPathUtils.child(_PLUGIN.path, "get_regions.config")
+
 	-- create unique CommandFile and LogFile
     local dateStr = tostring(LrDate.currentTime())
 	handle.exiftool_command_file   = LrPathUtils.child(tmpdir, "exiftool_commands_" .. 
@@ -186,10 +184,6 @@ function _openExifTool(exportParams)
 
     handle.cmd_num = 0
 
-    local config_file    = path_quote_selection_for_platform(exiftool_config_file)
-    local command_file   = path_quote_selection_for_platform(handle.exiftool_command_file)
-    local log_file       = path_quote_selection_for_platform(handle.exiftool_log_file)
-    local error_log_file = path_quote_selection_for_platform(handle.exiftool_error_log_file)
     local exif_args      = ' -common_args -charset filename=UTF8 -overwrite_original -fast2 -m '
     
 	-- open and truncate commands file
@@ -205,22 +199,37 @@ function _openExifTool(exportParams)
         if LrFileUtils.exists(handle.exiftool_error_log_file) then LrFileUtils.delete(handle.exiftool_error_log_file) end
     
         LrTasks.startAsyncTask ( function()
-                local command = exe ..
-                                ' -config ' .. config_file ..
-                                ' -stay_open True -@ ' .. command_file ..
-                                exif_args .. ' > ' .. log_file .. ' 2> ' .. error_log_file
+                local command = '"' .. exportParams.exifToolApp .. '"' ..
+                                ' -config ' .. '"' .. exiftool_config_file .. '"' ..
+                                ' -stay_open True ' ..
+                                ' -@ ' .. '"' .. handle.exiftool_command_file .. '"' ..
+                                exif_args ..
+                                ' > ' .. '"' .. handle.exiftool_log_file .. '"' ..
+                                ' 2> ' .. '"' .. handle.exiftool_error_log_file .. '"'
 
-                logger.writeLog(3, string.format("exiftool starting: (%s)", command))
-                local exitStatus = LrTasks.execute(command)
+                logger.writeLog(3, string.format("exiftool starting: %s", command))
+                -- on Windows, whole command line needs to be wrapped in an additional set of quotes
+                local exitStatus = LrTasks.execute(command_line_quote(command))
                 if exitStatus > 0 then
-                    logger.writeLog(1, string.format("exiftool error: %s", tostring(exitStatus)))
+                    logger.writeLog(0, string.format("exiftool error: %s", tostring(exitStatus)))
                     success = false
                 end
             
                 -- Clean-up
-                LrFileUtils.delete(handle.exiftool_command_file)
-                LrFileUtils.delete(handle.exiftool_log_file)
-                LrFileUtils.delete(handle.exiftool_error_log_file)
+                if exportParams.exifToolLogDelete then
+                    logger.writeLog(3, "exiftool finishing: cleanup")
+                    logger.writeLog(5, "deleting:" .. handle.exiftool_command_file)
+                    LrFileUtils.delete(handle.exiftool_command_file)
+                    logger.writeLog(5, "deleting:" .. handle.exiftool_log_file)
+                    LrFileUtils.delete(handle.exiftool_log_file)
+                    logger.writeLog(5, "deleting:" .. handle.exiftool_error_log_file)
+                    LrFileUtils.delete(handle.exiftool_error_log_file)
+                else
+                    logger.writeLog(3, "exiftool finishing: leaving files for inspection")
+                    logger.writeLog(5, "leaving:" .. handle.exiftool_command_file)
+                    logger.writeLog(5, "leaving:" .. handle.exiftool_log_file)
+                    logger.writeLog(5, "leaving:" .. handle.exiftool_error_log_file)
+                end
             end 
         )
     end -- if not file; else

@@ -187,6 +187,11 @@ function FLEExportDialogs.startDialog( propertyTable )
     
     -- using prefs rather than exportPresetFields in order to configure
     -- from Lightroom Plug-in Manager, before export
+    -- first the preferences configured in Plug-in Manager dialog
+    for i, list_value in pairs(manager_table) do
+        propertyTable[list_value.key] = prefs[list_value.key]
+    end
+    -- then the preferences configured in Export dialog
     for i, list_value in pairs(preference_table) do
         propertyTable[list_value.key] = prefs[list_value.key]
     end

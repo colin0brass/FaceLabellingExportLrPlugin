@@ -210,6 +210,18 @@ end
 --------------------------------------------------------------------------------
 -- Quote helper for Windows vs Mac
 
+-- on Windows, whole command line needs to be wrapped in an additional set of quotes
+-- to handle case where exe or other arguments are also quoted (e.g. to handle spaces in paths)
+function command_line_quote(command_line)
+    if WIN_ENV == true then
+        command_line = '"' .. command_line .. '"'
+    else -- Mac
+        command_line = command_line -- no change
+    end
+    
+    return command_line
+end
+
 function path_quote_selection_for_platform(path)
     if WIN_ENV == true then
         path = path -- no change

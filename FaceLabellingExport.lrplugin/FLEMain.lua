@@ -87,7 +87,7 @@ function FLEMain.stop()
     logger.writeLog(4, "FLEMain.stop")
     FLEExifToolAPI.closeSession(labelling_context.exifToolHandle)
     
-    success = FLEImageMagickAPI.cleanup(labelling_context.imageMagickHandle, false)
+    success = FLEImageMagickAPI.cleanup(labelling_context.imageMagickHandle)
 end
 
 --------------------------------------------------------------------------------
@@ -131,6 +131,7 @@ function FLEMain.export_thumbnail_images(people, photoDimension, photoPath)
         -- input file
         exported_file = '"' .. photoPath .. '"'
         command_string = '# Input file'
+        FLEImageMagickAPI.start_new_command(labelling_context.imageMagickHandle)
         FLEImageMagickAPI.add_command_string(labelling_context.imageMagickHandle, command_string)
         command_string = exported_file
         FLEImageMagickAPI.add_command_string(labelling_context.imageMagickHandle, command_string)
@@ -211,6 +212,7 @@ function FLEMain.export_labeled_image(people, photoDimension, photoPath)
     -- input file
     exported_file = '"' .. photoPath .. '"'
     command_string = '# Input file'
+    FLEImageMagickAPI.start_new_command(labelling_context.imageMagickHandle)
     FLEImageMagickAPI.add_command_string(labelling_context.imageMagickHandle, command_string)
     command_string = exported_file
     if local_exportParams.obfuscate_image then -- fade image
