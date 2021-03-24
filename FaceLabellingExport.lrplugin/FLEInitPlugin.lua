@@ -146,6 +146,11 @@ preference_table = {
 	{ key = 'default_position', default = 'below' },
 	{ key = 'default_num_rows', default = 3 },
 	{ key = 'default_align', default = 'center' },
+	{ key = 'format_experiment_list', default = {'position', 'num_rows', 'font_size'}, fixed = true },
+	{ key = 'positions_experiment_list', default = {'below', 'above', 'left', 'right'}, fixed = true },
+	{ key = 'num_rows_experiment_list', default = {1, 2, 3, 4}, fixed = true },
+	{ key = 'font_size_experiment_list', default = {1, 0.75, 0.5, 0.25}, fixed = true },
+	{ key = 'experiment_loop_limit', default = 100, fixed = true},
 	
     -- Export thumbnails preferences
 	{ key = 'export_thumbnails', default = false },
@@ -167,7 +172,11 @@ end
 
 -- Export dialog preferences
 for i, list_value in pairs(preference_table) do
-    prefs[list_value.key] = ifnil(prefs[list_value.key], list_value.default)
+    if list_value.fixed then -- use this to always initialise to default value
+        prefs[list_value.key] = list_value.default
+    else -- otherwise give option to preserve previous prefs value if already defined
+        prefs[list_value.key] = ifnil(prefs[list_value.key], list_value.default)
+    end
 end
 
 -- Initialise logger

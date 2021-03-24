@@ -122,14 +122,6 @@ function FLEInfoProvider.startDialog( propertyTable )
     local prefs = LrPrefs.prefsForPlugin()
     
     -- copy preferences
-    --propertyTable.exifToolApp         = prefs.exifToolApp
-    --propertyTable.imageMagickApp      = prefs.imageMagickApp
-    --propertyTable.imageConvertApp     = prefs.imageConvertApp
-    --propertyTable.logger_verbosity    = prefs.logger_verbosity
-    --propertyTable.exifToolCommandFile = prefs.exifToolCommandFile
-    --propertyTable.exifToolLogFile     = prefs.exifToolLogFile
-    --propertyTable.exifToolLogDelete   = prefs.exifToolLogDelete
-
     -- using prefs rather than exportPresetFields in order to configure
     -- from Lightroom Plug-in Manager, before export
     for i, list_value in pairs(manager_table) do
@@ -142,7 +134,6 @@ function FLEInfoProvider.startDialog( propertyTable )
     propertyTable:addObserver( 'exifToolApp',           updatePluginStatus )
     propertyTable:addObserver( 'imageMagickApp',        updatePluginStatus )
     propertyTable:addObserver( 'imageConvertApp',       updatePluginStatus )
-    --propertyTable:addObserver( 'logFilePath',           updatePluginStatus )
     propertyTable:addObserver( 'logger_verbosity',      updatePluginStatus )
     propertyTable:addObserver( 'exifToolLogDelete',     updatePluginStatus )
     propertyTable:addObserver( 'imageMagickLogDelete',  updatePluginStatus )
@@ -156,12 +147,6 @@ function FLEInfoProvider.endDialog( propertyTable )
     local prefs = LrPrefs.prefsForPlugin()
 
     -- copy any updated preferences back for persistent storage
-    --prefs.exifToolApp       = propertyTable.exifToolApp
-    --prefs.imageMagickApp    = propertyTable.imageMagickApp
-    --prefs.imageConvertApp   = propertyTable.imageConvertApp
-    --prefs.logger_verbosity  = propertyTable.logger_verbosity
-    --prefs.exifToolLogDelete = propertyTable.exifToolLogDelete
-    
     -- using prefs rather than exportPresetFields in order to configure
     -- from Lightroom Plug-in Manager, before export
     for i, list_value in pairs(manager_table) do

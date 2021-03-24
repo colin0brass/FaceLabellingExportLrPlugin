@@ -508,8 +508,70 @@ function exportLabellingView(f, propertyTable)
     return result
 end
 
+function list_to_text(propertyTable, list)
+    local string = '' -- initial value
+    for i, entry in pairs(list) do
+        if i ~= 1 then string = string .. ', ' end
+        string = string .. tostring(entry)
+    end
+    return string
+end
+
 --------------------------------------------------------------------------------
--- dialog section for export thumbnails
+-- dialog section for dynamic label options
+
+function exportDynamicLabellingView(f, propertyTable)
+    local bind = LrView.bind
+    local share = LrView.share
+    
+    result = f:row { -- labelling config
+        f:column {
+            f:group_box {
+                title = LOC "$$$/FaceLabelling/ExportDialog/DynamicLabellingExperiments=Dynamic labelling experiments",
+                f:static_text {
+                    title = 'Experiment list:',
+                },
+                f:static_text {
+                    title = '\t' .. list_to_text(propertyTable, propertyTable.format_experiment_list),
+                },
+                f:static_text {
+                    title = 'Experiment loop limit:',
+                },
+                f:static_text {
+                    title = '\t' .. tostring(propertyTable.experiment_loop_limit),
+                },
+            }, -- group_box
+        }, -- column
+        f:column {
+            f:group_box {
+                title = LOC "$$$/FaceLabelling/ExportDialog/ExperimentOptions=Experiment options",
+                f:static_text {
+                    title = 'Positions:',
+                },
+                f:static_text {
+                    title = '\t' .. list_to_text(propertyTable, propertyTable.positions_experiment_list),
+                },
+                f:static_text {
+                    title = 'Num rows:',
+                },
+                f:static_text {
+                    title = '\t' .. list_to_text(propertyTable, propertyTable.num_rows_experiment_list),
+                },
+                f:static_text {
+                    title = 'Font size (multiples):',
+                },
+                f:static_text {
+                    title = '\t' .. list_to_text(propertyTable, propertyTable.font_size_experiment_list),
+                },
+            }, -- group_box
+        }, -- column
+    } -- row; labelling config
+        
+    return result
+end
+    
+--------------------------------------------------------------------------------
+-- dialog section for label size options
 
 function exportLabelSettingsView(f, propertyTable)
     local bind = LrView.bind
@@ -894,7 +956,7 @@ function FLEExportDialogs.sectionsForBottomOfDialog( f, propertyTable )
    
     local result = {
         {
-            title = LOC "$$$/FaceLabelling/ExportDialog/FaceLabellingSettings=Face Labelling Options",
+            title = LOC "$$$/FaceLabelling/ExportDialog/FaceLabellingSettings=Face Labeling Options",
             
             synopsis = bind { key = 'fullPath', object = propertyTable },
             
@@ -910,6 +972,12 @@ function FLEExportDialogs.sectionsForBottomOfDialog( f, propertyTable )
             f:view {
                 fill_horizontal = 1,
                 exportLabellingView(f, propertyTable),
+            }, -- view
+            
+            f:separator { fill_horizontal = 1 },
+            f:view {
+                fill_horizontal = 1,
+                exportDynamicLabellingView(f, propertyTable),
             }, -- view
             
             f:separator { fill_horizontal = 1 },
