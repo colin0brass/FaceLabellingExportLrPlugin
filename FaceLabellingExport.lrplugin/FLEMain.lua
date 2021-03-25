@@ -470,21 +470,23 @@ end
 -- Create labels from exif face information
 
 function get_labels()
-    labels = {}
-    people = labelling_context.people
+    local labels = {} -- initial value
+    local people = labelling_context.people
     if people and #people > 0 then
         for i, person in pairs(people) do
-            label = {}
-            label.text = person.name
-            label.position_clash = false -- initial value
-            label.person = person
-            logger.writeLog(3, "- set_label_position: " .. label.text)
-            label = set_label_position(label, 
-                                       local_exportParams.default_position,
-                                       local_exportParams.default_num_rows,
-                                       local_exportParams.default_align,
-                                       label_config.font_size)
-            labels[i] = label
+            if string.len(person.name)>0 then -- only create label if person has a name string
+                local label = {} -- initial value
+                label.text = person.name
+                label.position_clash = false -- initial value
+                label.person = person
+                logger.writeLog(3, "- set_label_position: " .. label.text)
+                label = set_label_position(label, 
+                                           local_exportParams.default_position,
+                                           local_exportParams.default_num_rows,
+                                           local_exportParams.default_align,
+                                           label_config.font_size)
+                labels[#labels+1] = label -- append label to end of list
+            end -- if person.name
         end
     else
         logger.writeLog(0, "get_labels: no people found")
