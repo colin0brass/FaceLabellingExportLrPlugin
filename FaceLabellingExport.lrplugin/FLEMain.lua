@@ -180,7 +180,11 @@ function FLEMain.export_thumbnail_images(people, photoDimension, photoPath)
         elseif local_exportParams.thumbnails_filename_option == 'FileUnique' then
             filename_no_extension = filename
         else -- region name
-            filename_no_extension = person.name
+            if string.len(person.name) > 0 then
+                filename_no_extension = person.name
+            else
+                filename_no_extension = 'Unknown'
+            end
         end
         filename = LrPathUtils.addExtension(filename_no_extension, file_extension)
         
