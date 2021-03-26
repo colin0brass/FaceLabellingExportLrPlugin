@@ -62,6 +62,23 @@ local labelling_context = {}
 -- Functions
 
 --------------------------------------------------------------------------------
+-- Init of exportParams from prefs, to ensure they are set even if dialogs are bypassed
+-- for example if "export with previous" menu option is used
+
+function FLEMain.init_params_from_prefs(exportParams, prefs)
+    -- using prefs rather than exportPresetFields in order to configure
+    -- from Lightroom Plug-in Manager, before export
+    -- first the preferences configured in Plug-in Manager dialog
+    for i, list_value in pairs(manager_table) do
+        exportParams[list_value.key] = prefs[list_value.key]
+    end
+    -- then the preferences configured in Export dialog
+    for i, list_value in pairs(preference_table) do
+        exportParams[list_value.key] = prefs[list_value.key]
+    end
+end
+
+--------------------------------------------------------------------------------
 -- Session handling, start session
 
 function FLEMain.start(exportParams)

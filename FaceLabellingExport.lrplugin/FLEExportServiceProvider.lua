@@ -71,6 +71,9 @@ function processRenderedPhotos( functionContext, exportContext )
     local exportSession = exportContext.exportSession
     local exportParams = exportContext.propertyTable
     
+    -- Initialise export params from prefs, to ensure set even if dialogs have been bypassed (e.g. "export with previous" menu option)
+    FLEMain.init_params_from_prefs(exportParams, prefs)
+    
     -- Set progress title.
     local nPhotos = exportSession:countRenditions()
     local progressScope = exportContext:configureProgress {
