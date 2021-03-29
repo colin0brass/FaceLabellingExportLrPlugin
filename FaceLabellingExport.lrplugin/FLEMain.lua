@@ -84,12 +84,14 @@ end
 function FLEMain.start(exportParams)
     logger.writeLog(4, "FLEMain.start")
 
+    labelling_context.status_ok = false -- initial value
     local handle = FLEExifToolAPI.openSession(exportParams)
     if not handle then
         logger.writeLog(0, "Failed to start exiftool")
         return
     else
         labelling_context.exifToolHandle = handle
+        labelling_context.status_ok = true
     end
     
     labelling_context.imageMagickHandle = FLEImageMagickAPI.init(exportParams)
@@ -117,21 +119,25 @@ function FLEMain.renderPhoto(srcPath, renderedPath)
     local people = {}
     local labels = {}
     
-    -- initialise context for new photo
-    init()
+    if labelling_context.status_ok then
     
-    -- create summary of people from regions
-    face_regions, photoDimension = getRegions(renderedPath)
-
-    logger.writeTable(4, face_regions) -- write to log for debug
-    people = get_people(photoDimension, face_regions)
-
-    -- save cropped thumbnails first, before exported image is modified by the labelling
-    if local_exportParams.export_thumbnails then
-        FLEMain.export_thumbnail_images(people, photoDimension, renderedPath)
-    end
-    -- label the exported image (after saving cropped thumbnails)
-    FLEMain.export_labeled_image(people, photoDimension, renderedPath)
+        -- initialise context for new photo
+        init()
+        
+        -- create summary of people from regions
+        face_regions, photoDimension = getRegions(renderedPath)
+    
+        logger.writeTable(4, face_regions) -- write to log for debug
+        people = get_people(photoDimension, face_regions)
+    
+        -- save cropped thumbnails first, before exported image is modified by the labelling
+        if local_exportParams.export_thumbnails then
+            FLEMain.export_thumbnail_images(people, photoDimension, renderedPath)
+        end
+        -- label the exported image (after saving cropped thumbnails)
+        FLEMain.export_labeled_image(people, photoDimension, renderedPath)
+        
+    end -- if labelling_context.status_ok
     
     return success, failures
 end
@@ -144,61 +150,68 @@ function FLEMain.export_thumbnail_images(people, photoDimension, photoPath)
 
     logger.writeLog(3, "Create ImageMagick script command file for image labelling")
 
-    for i, person in pairs(people) do -- is this robust for zero length?
-        -- input file
-        exported_file = '"' .. photoPath .. '"'
-        command_string = '# Input file'
-        FLEImageMagickAPI.start_new_command(labelling_context.imageMagickHandle)
-        FLEImageMagickAPI.add_command_string(labelling_context.imageMagickHandle, command_string)
-        command_string = exported_file
-        FLEImageMagickAPI.add_command_string(labelling_context.imageMagickHandle, command_string)
+    for i, person in pairs(people) do
     
-        -- crop thumbnail
-        command_string = '# Person thumbnail images'
-        FLEImageMagickAPI.add_command_string(labelling_context.imageMagickHandle, command_string)
-        command_string = string.format('-crop %dx%d+%d+%d',
-                person['w'], person['h'], person['x'], person['y'])
-        FLEImageMagickAPI.add_command_string(labelling_context.imageMagickHandle, command_string)
-
-        -- derive output path and create directory if not already existing
-        local exported_path = LrPathUtils.parent(photoPath)
-        if local_exportParams.thumbnails_folder_option == 'ThumbnailsThumbFolder' then
-            outputPath = LrPathUtils.child(exported_path, 'thumb')
-            if not LrFileUtils.exists(outputPath) then
-                LrFileUtils.createDirectory(outputPath)
-            end
-        else -- not 'thumb' folder
-            outputPath = exported_path
-        end
+        local person_is_named = string.len(person.name) > 0
+        if person_is_named or local_exportParams.export_thumbnails_if_unnamed then
         
-        -- derive output file name
-        local filename = LrPathUtils.leafName(photoPath)
-        local filename_no_extension = LrPathUtils.removeExtension(filename)
-        local file_extension = LrPathUtils.extension(filename)
-        if local_exportParams.thumbnails_filename_option == 'RegionNumber' then
-            filename_no_extension = filename_no_extension .. string.format('_%02d', i)
-        elseif local_exportParams.thumbnails_filename_option == 'FileUnique' then
-            filename_no_extension = filename
-        else -- region name
-            if string.len(person.name) > 0 then
-                filename_no_extension = person.name
-            else
-                filename_no_extension = 'Unknown'
-            end
-        end
-        filename = LrPathUtils.addExtension(filename_no_extension, file_extension)
+            -- input file
+            exported_file = '"' .. photoPath .. '"'
+            command_string = '# Input file'
+            FLEImageMagickAPI.start_new_command(labelling_context.imageMagickHandle)
+            FLEImageMagickAPI.add_command_string(labelling_context.imageMagickHandle, command_string)
+            command_string = exported_file
+            FLEImageMagickAPI.add_command_string(labelling_context.imageMagickHandle, command_string)
         
-        -- combine path and filename, and ensure unique
-        local output_file_with_path = LrPathUtils.child(outputPath, filename)
-        output_file_with_path = LrFileUtils.chooseUniqueFileName(output_file_with_path)
-        
-        -- output file
-        command_string = "-write " .. '"' .. output_file_with_path .. '"'
-        FLEImageMagickAPI.add_command_string(labelling_context.imageMagickHandle, command_string)
+            -- crop thumbnail
+            command_string = '# Person thumbnail images'
+            FLEImageMagickAPI.add_command_string(labelling_context.imageMagickHandle, command_string)
+            command_string = string.format('-crop %dx%d+%d+%d',
+                    person['w'], person['h'], person['x'], person['y'])
+            FLEImageMagickAPI.add_command_string(labelling_context.imageMagickHandle, command_string)
     
-        -- execute ImageMagick commands
-        FLEImageMagickAPI.execute_commands(labelling_context.imageMagickHandle)
-    end
+            -- derive output path and create directory if not already existing
+            local exported_path = LrPathUtils.parent(photoPath)
+            if local_exportParams.thumbnails_folder_option == 'ThumbnailsThumbFolder' then
+                outputPath = LrPathUtils.child(exported_path, 'thumb')
+                if not LrFileUtils.exists(outputPath) then
+                    LrFileUtils.createDirectory(outputPath)
+                end
+            else -- not 'thumb' folder
+                outputPath = exported_path
+            end
+            
+            -- derive output file name
+            local filename = LrPathUtils.leafName(photoPath)
+            local filename_no_extension = LrPathUtils.removeExtension(filename)
+            local file_extension = LrPathUtils.extension(filename)
+            if local_exportParams.thumbnails_filename_option == 'RegionNumber' then
+                filename_no_extension = filename_no_extension .. string.format('_%02d', i)
+            elseif local_exportParams.thumbnails_filename_option == 'FileUnique' then
+                filename_no_extension = filename
+            else -- region name
+                if person_is_named then
+                    filename_no_extension = person.name
+                else
+                    filename_no_extension = 'Unknown'
+                end
+            end
+            filename = LrPathUtils.addExtension(filename_no_extension, file_extension)
+            
+            -- combine path and filename, and ensure unique
+            local output_file_with_path = LrPathUtils.child(outputPath, filename)
+            output_file_with_path = LrFileUtils.chooseUniqueFileName(output_file_with_path)
+            
+            -- output file
+            command_string = "-write " .. '"' .. output_file_with_path .. '"'
+            FLEImageMagickAPI.add_command_string(labelling_context.imageMagickHandle, command_string)
+        
+            -- execute ImageMagick commands
+            FLEImageMagickAPI.execute_commands(labelling_context.imageMagickHandle)
+            
+        end -- if person_is_named or local_exportParams.export_thumbnails_if_unnamed
+        
+    end -- for i, person in pairs(people)
 end
 
 --------------------------------------------------------------------------------
@@ -521,7 +534,7 @@ end
 function get_average_region_size(people)
     local average_size = nil
     if people and #people > 0 then
-        dimensions_sum = 0
+        local dimensions_sum = 0
         for i, person in pairs(people) do
             dimensions_sum = dimensions_sum + person['w'] + person['h']
         end
@@ -566,8 +579,8 @@ function determine_label_font_size()
         font_size = local_exportParams.label_font_size_fixed
         logger.writeLog(5, "determine_label_font_size: fixed font size " .. font_size)
     else
-        people = labelling_context.people
-        photoDimension = labelling_context.photo_dimensions
+        local people = labelling_context.people
+        local photoDimension = labelling_context.photo_dimensions
         
         local image_width = ifnil(photoDimension.CropW, photoDimension.width)
 
@@ -1003,34 +1016,40 @@ function build_experiment_list(labels_in_this_experiment)
     experiment_list.global = {} -- initial value
     experiment_list.global.experiment = {} -- initial value
 
-    for i, is_included in pairs(labels_in_this_experiment) do
-        experiment_list.per_label[i] = {} -- initial value
-        experiment_list.per_label[i].is_included = is_included
-        if is_included then
-            experiment_list.per_label[i].experiment = {} -- initial value
-            for exp_num, exp_name in pairs(label_config.format_experiment_list) do
-                experiment_list.per_label[i].experiment[exp_num] = {} -- initial value
-                exp_details = get_experiment_details(exp_name)
-                experiment_list.per_label[i].experiment[exp_num].name = exp_details.name
-                experiment_list.per_label[i].experiment[exp_num].scope = exp_details.scope
-                if exp_details.scope == 'per_label' then -- sparse entries for per_label only
-                    experiment_list.per_label[i].experiment[exp_num].is_included = true
-                    experiment_list.per_label[i].experiment[exp_num].options = exp_details.options
-                    experiment_list.per_label[i].experiment[exp_num].len = exp_details.len
-                    experiment_list.per_label[i].experiment[exp_num].num = exp_details.num
-                else -- global, sparse table
-                    experiment_list.global.experiment[exp_num] = {} -- initial value
-                    experiment_list.global.experiment[exp_num].is_included = true
-                    experiment_list.global.experiment[exp_num].name = exp_details.name
-                    experiment_list.global.experiment[exp_num].options = exp_details.options
-                    experiment_list.global.experiment[exp_num].len = exp_details.len
-                    experiment_list.global.experiment[exp_num].num = exp_details.num
-                    -- TO DO: find a better way to copy this; suggest to use a for loop to copy all items in exp_details
-                    experiment_list.global.experiment[exp_num].original_font_size = exp_details.original_font_size
+    if #label_config.format_experiment_list==0 then -- only build experiment if there are some experiments enabled
+        logger.writeLog(5, "build_experiment_list: no experiment list found")
+    else
+        logger.writeLog(5, "build_experiment_list: experiment list found")
+        for i, is_included in pairs(labels_in_this_experiment) do
+            experiment_list.per_label[i] = {} -- initial value
+            experiment_list.per_label[i].is_included = is_included
+            if is_included then
+                experiment_list.per_label[i].experiment = {} -- initial value
+                for exp_num, exp_name in pairs(label_config.format_experiment_list) do
+                    experiment_list.per_label[i].experiment[exp_num] = {} -- initial value
+                    exp_details = get_experiment_details(exp_name)
+                    experiment_list.per_label[i].experiment[exp_num].name = exp_details.name
+                    experiment_list.per_label[i].experiment[exp_num].scope = exp_details.scope
+                    if exp_details.scope == 'per_label' then -- sparse entries for per_label only
+                        experiment_list.per_label[i].experiment[exp_num].is_included = true
+                        experiment_list.per_label[i].experiment[exp_num].options = exp_details.options
+                        experiment_list.per_label[i].experiment[exp_num].len = exp_details.len
+                        experiment_list.per_label[i].experiment[exp_num].num = exp_details.num
+                    else -- global, sparse table
+                        experiment_list.global.experiment[exp_num] = {} -- initial value
+                        experiment_list.global.experiment[exp_num].is_included = true
+                        experiment_list.global.experiment[exp_num].name = exp_details.name
+                        experiment_list.global.experiment[exp_num].options = exp_details.options
+                        experiment_list.global.experiment[exp_num].len = exp_details.len
+                        experiment_list.global.experiment[exp_num].num = exp_details.num
+                        -- TO DO: find a better way to copy this; suggest to use a for loop to copy all items in exp_details
+                        experiment_list.global.experiment[exp_num].original_font_size = exp_details.original_font_size
+                    end
                 end
             end
-        end
-    end -- for i, is_included in pairs(labels_in_this_experiment)
+        end -- for i, is_included in pairs(labels_in_this_experiment)
+        
+    end -- if format_experiment_list
     
     return experiment_list
 end
@@ -1178,7 +1197,8 @@ function increment_and_apply_experiment(experiment_list)
                 end -- if num < len
                 
             else -- if scope == 'per_label'; elseif scope == 'global'
-                logger.writeLog(0, "increment_and_apply_experiment: unknown scope: " .. scope)
+                logger.writeLog(0, "increment_and_apply_experiment: unknown scope: " .. tostring(scope))
+                finished = true
             end -- if scope == 'per_label'
             
         end -- if not is_found
@@ -1267,6 +1287,13 @@ function optimise_labels(labels_in_higher_level_experiments,
                     is_finished = true
                 else -- if len_boolean_list(labels_in_this_experiment) == 0
                     experiment_list = build_experiment_list(labels_in_this_experiment)
+                    if next(experiment_list)==nil then -- check for empty table
+                        is_finished = true
+                        logger.writeLog(4, "- optimise_labels: no experiment list found")
+                    else
+                        logger.writeLog(4, "- optimise_labels: experiment list found")
+                    end
+                    logger.writeTable(5, experiment_list)
                 end
             end
             

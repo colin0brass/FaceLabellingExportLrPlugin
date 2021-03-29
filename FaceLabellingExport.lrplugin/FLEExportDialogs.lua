@@ -40,6 +40,7 @@ local LrPathUtils       = import("LrPathUtils")
 local LrPrefs           = import("LrPrefs")
 local LrView            = import("LrView")
 local LrBinding         = import("LrBinding")
+local LrRecursionGuard  = import 'LrRecursionGuard'
 
 --============================================================================--
 -- Local imports
@@ -158,14 +159,156 @@ local function roundOneDecimalPlace(properties, key, value)
 end
 
 --------------------------------------------------------------------------------
+-- Observer function to update experiment list and ensure consistent with defaults
+function update_experiment_list(properties, key)
+    local exp_list = {} -- initial value
+    
+    logger.writeLog(5, 'update_experiment_list: ' .. tostring(key))
+    for exp_key, exp in pairs(experiment_definitions.experiments) do
+        exp.is_enabled = properties[exp.dialog_var] -- update status flags
+        if exp.is_enabled then
+            exp_list[#exp_list+1] = exp.key
+        end
+    end -- for exp_key, exp
+
+    local e = experiment_definitions.experiment_list
+    if e.dialog_string_var~=nil then properties[e.dialog_string_var] = exp_list end
+end
+
+--------------------------------------------------------------------------------
+-- Observer function to update experiment list and ensure consistent with defaults
+function update_experiment_options_list(properties, key)
+    logger.writeLog(5, 'update_experiment_options_list: ' .. tostring(key))
+    for exp_key, exp in pairs(experiment_definitions.experiments) do
+    
+        local default = properties[exp.dialog_initial_var]
+        
+        local exp_opt_list = {} -- initial value
+        for opt_key, opt in pairs(exp.options_list) do
+            if opt.dialog_var~=nil then
+                if opt.key == default then
+                    logger.writeLog(5, 'update_experiment_options_list: ensure default option remains set: ' .. tostring(opt.dialog_var))
+                    properties[opt.dialog_var] = true -- ensure default option remains set
+                end
+                opt.is_enabled = properties[opt.dialog_var] -- update status flags
+                if opt.is_enabled then
+                    exp_opt_list[#exp_opt_list+1] = opt.key
+                end -- if opt.key == default
+            else
+                logger.writeLog(0, "update_experiment_options_list: unable to set for " .. tostring(key))
+            end -- if opt.dialog_var~=nil
+        end -- for opt_key, opt
+        
+        if exp.dialog_string_var~=nil then properties[exp.dialog_string_var] = exp_opt_list end
+        
+    end -- for exp_key, exp
+end
+
+local function update_label_defaults(properties, key, value)
+    logger.writeLog(5, "update_label_defaults: " .. tostring(key) .. " : " .. tostring(value))
+    local found = false -- initial value
+    for exp_key, exp in pairs(experiment_definitions.experiments) do
+        if exp.dialog_initial_var == key then
+            found = true
+            local default = properties[exp.dialog_initial_var]
+            
+            for opt_key, opt in pairs(exp.options_list) do
+                if opt.key == default then
+                    if opt.dialog_var~=nil then
+                        logger.writeLog(5, "setting: " .. opt.dialog_var)
+                        properties[opt.dialog_var] = true
+                    else
+                        logger.writeLog(0, "update_label_defaults: unable to set default for " .. tostring(key))
+                    end -- if opt.dialog_var~=nil
+                end -- if opt.key == default
+            end -- for opt_key, opt
+        end -- if exp.key == key
+    end -- for exp_key, exp
+
+    if not found then
+        logger.writeLog(0, 'ensure_default_is_set: unknown key:' .. key)
+    end
+    
+    update_experiment_options_list(properties, key)
+end
+
+--------------------------------------------------------------------------------
 -- Reset Export Preset Fields to default values
 
 function resetExportPresetFields( propertyTable )
     logger.writeLog(3, "resetExportPresetFields")
-    for i, list_value in pairs(preference_table) do
-        propertyTable[list_value.key] = list_value.default
-        logger.writeLog(4, list_value.key .. ' reset to ' .. tostring(list_value.default))
-    end
+    
+    local is_reset = true
+    property_table_init_from_prefs(propertyTable, preference_table, prefs, is_reset)
+    set_dialog_properties_for_experiment( propertyTable, experiment_definitions, is_reset )
+end
+
+function set_dialog_properties_for_experiment( propertyTable, experiment_definitions, reset )
+    logger.writeLog(5, "set_dialog_properties_for_experiment:")
+    reset = ifnil(reset, false)
+
+    for exp_key, exp in pairs(experiment_definitions.experiments) do
+        if reset then exp.is_enabled = exp.default_enable end
+    
+        for opt_key, opt in pairs(exp.options_list) do
+            if reset then opt.is_enabled = opt.default_enable end
+            
+            if opt.is_enabled~=nil and opt.dialog_var~=nil then
+                logger.writeLog(5, "set_dialog_properties_for_experiment: setting " .. opt.key .. " : " .. opt.dialog_var .. " to " .. tostring(opt.is_enabled))
+                propertyTable[opt.dialog_var] = opt.is_enabled
+            else -- not found
+                logger.writeLog(0, "set_dialog_properties_for_experiment: unknown opt.key: " .. tostring(opt.key))
+            end
+            
+        end -- for opt_key, opt
+
+        if exp.is_enabled~=nil and exp.dialog_var~=nil then
+            logger.writeLog(5, "set_dialog_properties_for_experiment: setting " .. exp.key .. " : " .. exp.dialog_var .. " to " .. tostring(exp.is_enabled))
+            propertyTable[exp.dialog_var] = exp.is_enabled
+        else -- not found
+            logger.writeLog(0, "set_dialog_properties_for_experiment: unknown exp.key: " .. tostring(exp.key))
+        end
+        
+    end -- for exp_key, exp
+end
+
+function init_experiment_structure( propertyTable, experiment_definitions )
+    logger.writeLog(5, "init_experiment_structure")
+    experiment_definitions.experiment_list.dialog_var = nil -- not currently used
+    experiment_definitions.experiment_list.dialog_string_var = 'format_experiment_list'
+    
+    for exp_key, exp in pairs(experiment_definitions.experiments) do
+        for opt_key, opt in pairs(exp.options_list) do
+            if exp.key == 'position' then
+                exp.dialog_var = 'label_position_search'
+                exp.dialog_string_var = 'positions_experiment_list'
+                exp.dialog_initial_var = 'default_position'
+                if     opt.key == 'below' then opt.dialog_var = 'experiment_enable_position_below'
+                elseif opt.key == 'above' then opt.dialog_var = 'experiment_enable_position_above'
+                elseif opt.key == 'left' then opt.dialog_var = 'experiment_enable_position_left'
+                elseif opt.key == 'right' then opt.dialog_var = 'experiment_enable_position_right'
+                else opt.dialog_var = nil end
+            elseif exp.key == 'num_rows' then
+                exp.dialog_var = 'label_num_rows_search'
+                exp.dialog_string_var = 'num_rows_experiment_list'
+                exp.dialog_initial_var = 'default_num_rows'
+                if     opt.key == 1 then opt.dialog_var = 'experiment_enable_num_rows_1'
+                elseif opt.key == 2 then opt.dialog_var = 'experiment_enable_num_rows_2'
+                elseif opt.key == 3 then opt.dialog_var = 'experiment_enable_num_rows_3'
+                elseif opt.key == 4 then opt.dialog_var = 'experiment_enable_num_rows_4'
+                else opt.dialog_var = nil end
+            elseif exp.key == 'font_size' then
+                exp.dialog_var = 'label_font_size_search'
+                exp.dialog_string_var = 'font_size_experiment_list'
+                exp.dialog_initial_var = 'default_font_size_multiple'
+                if opt.key == 1.0 then opt.dialog_var = 'experiment_enable_font_size_multiple_1'
+                elseif opt.key == 0.75 then opt.dialog_var = 'experiment_enable_font_size_multiple_0_75'
+                elseif opt.key == 0.5 then opt.dialog_var = 'experiment_enable_font_size_multiple_0_5'
+                elseif opt.key == 0.25 then opt.dialog_var = 'experiment_enable_font_size_multiple_0_25'
+                else opt.dialog_var = nil end
+            end -- if exp.key
+        end -- for opt_key, opt
+    end -- for exp_key, exp
 end
 
 --------------------------------------------------------------------------------
@@ -187,15 +330,38 @@ function FLEExportDialogs.startDialog( propertyTable )
     
     -- using prefs rather than exportPresetFields in order to configure
     -- from Lightroom Plug-in Manager, before export
+    local is_reset = false
     -- first the preferences configured in Plug-in Manager dialog
-    for i, list_value in pairs(manager_table) do
-        propertyTable[list_value.key] = prefs[list_value.key]
-    end
+    property_table_init_from_prefs(propertyTable, manager_table, prefs, is_reset)
     -- then the preferences configured in Export dialog
-    for i, list_value in pairs(preference_table) do
-        propertyTable[list_value.key] = prefs[list_value.key]
-    end
+    property_table_init_from_prefs(propertyTable, preference_table, prefs, is_reset)
     
+    -- initialise experiment structure
+    init_experiment_structure( propertyTable, experiment_definitions )
+    set_dialog_properties_for_experiment( propertyTable, experiment_definitions )
+    
+    propertyTable:addObserver( 'label_position_search',  update_experiment_list)
+    propertyTable:addObserver( 'label_num_rows_search',  update_experiment_list)
+    propertyTable:addObserver( 'label_font_size_search', update_experiment_list)
+
+    propertyTable:addObserver( 'experiment_enable_position_below', update_experiment_options_list)
+    propertyTable:addObserver( 'experiment_enable_position_above', update_experiment_options_list)
+    propertyTable:addObserver( 'experiment_enable_position_left',  update_experiment_options_list)
+    propertyTable:addObserver( 'experiment_enable_position_right', update_experiment_options_list)
+
+    propertyTable:addObserver( 'experiment_enable_num_rows_1', update_experiment_options_list)
+    propertyTable:addObserver( 'experiment_enable_num_rows_2', update_experiment_options_list)
+    propertyTable:addObserver( 'experiment_enable_num_rows_3', update_experiment_options_list)
+    propertyTable:addObserver( 'experiment_enable_num_rows_4', update_experiment_options_list)
+
+    propertyTable:addObserver( 'experiment_enable_font_size_multiple_1',    update_experiment_options_list)
+    propertyTable:addObserver( 'experiment_enable_font_size_multiple_0_75', update_experiment_options_list)
+    propertyTable:addObserver( 'experiment_enable_font_size_multiple_0_5',  update_experiment_options_list)
+    propertyTable:addObserver( 'experiment_enable_font_size_multiple_0_25', update_experiment_options_list)
+
+    propertyTable:addObserver( 'default_position', update_label_defaults )
+    propertyTable:addObserver( 'default_num_rows', update_label_defaults )
+
     propertyTable:addObserver( 'LR_export_destinationType', updateExportStatus )
     propertyTable:addObserver( 'LR_export_useSubfolder', updateExportStatus )
     propertyTable:addObserver( 'LR_export_destinationPathPrefix', updateExportStatus )
@@ -226,9 +392,7 @@ function FLEExportDialogs.endDialog( propertyTable )
     
     -- using prefs rather than exportPresetFields in order to configure
     -- from Lightroom Plug-in Manager, before export
-    for i, list_value in pairs(preference_table) do
-        prefs[list_value.key] = propertyTable[list_value.key]
-    end
+    prefs_update_from_property_table(propertyTable, preference_table, prefs)
 
 end
 
@@ -255,6 +419,7 @@ function exportLabeledImageView(f, propertyTable)
             },
             f:group_box {
                 title = LOC "$$$/FaceLabelling/ExportDialog/ImageLabelOptions=Image labeling options",
+                fill_horizontal = 1,
                 f:checkbox {
                         title = LOC "$$$/FaceLabelling/ExportDialog/ImageLabelText=Draw label text",
                         value = bind 'draw_label_text',
@@ -273,6 +438,7 @@ function exportLabeledImageView(f, propertyTable)
             }, -- group_box
             f:group_box {
                 title = LOC "$$$/FaceLabelling/ExportDialog/ImageFilenameOptions=Obfuscation options",
+                fill_horizontal = 1,
                 f:checkbox {
                         title = LOC "$$$/FaceLabelling/ExportDialog/obfuscate_labels=Obfuscate labels",
                         tooltip = "Randomise characters and digits in labels",
@@ -292,6 +458,7 @@ function exportLabeledImageView(f, propertyTable)
             }, -- group_box
             f:group_box {
                 title = LOC "$$$/FaceLabelling/ExportDialog/ImageOptions=Image options",
+                fill_horizontal = 1,
                 f:checkbox {
                         title = LOC "$$$/FaceLabelling/ExportDialog/ImageCrop=Apply crop",
                         tooltip = "Apply crop (if present) as per EXIF",
@@ -306,552 +473,19 @@ function exportLabeledImageView(f, propertyTable)
 end
 
 --------------------------------------------------------------------------------
--- dialog section for export labeled image labelling config
-
-function exportLabellingView(f, propertyTable)
-    local bind = LrView.bind
-    local share = LrView.share
-    
-    -- expand simple list to list of tuples (title, value) for menu display
-    local list = { 'white', 'black', 'blue', 'red', 'green', 'grey' }
-    local menu_colour_list = {}
-    for i, list_value in pairs(list) do
-        menu_colour_list[i] = {title=list_value, value=list_value}
-    end
-    
-    local list = {'below', 'above', 'left', 'right'}
-    local menu_positions_list = {}
-    for i, list_value in pairs(list) do
-        menu_positions_list[i] = {title=list_value, value=list_value}
-    end
-    
-    --local list = {'center', 'left', 'right'}
-    --local menu_align_list = {}
-    --for i, list_value in pairs(list) do
-    --    menu_align_list[i] = {title=list_value, value=list_value}
-    --end
- 
-    result = f:row { -- labelling config
-        f:column {
-            f:group_box {
-                title = LOC "$$$/FaceLabelling/ExportDialog/LabelPositionOptions=Label position options",
-                f:radio_button {
-                    title = 'Fixed label positions',
-                    value = bind 'label_auto_optimise',
-                    checked_value = false,
-                    tooltip = "Fixed font size",
-                },
-                f:radio_button {
-                    title = 'Dynamic label positions',
-                    height_in_lines = 2,
-                    value = bind 'label_auto_optimise',
-                    checked_value = true,
-                    tooltip = "Dynamic label positions",
-                },
-            },
-        }, -- column
-        f:column {
-            f:group_box { -- Label options
-                title = "Label options",
-                f:column {
-                    f:static_text {
-                        title = 'Label outline line width:',
-                    },
-                    f:row {
-                        f:edit_field {
-                            width_in_digits = 2,
-                            place_horizontal = 0.5,
-                            min = 1,
-                            max = 10,
-                            precision = 0,
-                            increment = 1,
-                            value = bind('label_outline_line_width'),
-                            enabled = true,
-                            tooltip = 'Label outline line width',
-                        },
-                        f:slider {
-                            min = 1,
-                            max = 10,
-                            integral = true,
-                            value = bind('label_outline_line_width'),
-                            enabled = true,
-                            tooltip = 'Label outline line width',
-                            place_vertical = 0.5,
-                        },
-                    }, -- row
-                    f:static_text {
-                        title = 'Face outline line width:',
-                    },
-                    f:row {
-                        f:edit_field {
-                            width_in_digits = 2,
-                            place_horizontal = 0.5,
-                            min = 1,
-                            max = 10,
-                            precision = 0,
-                            increment = 1,
-                            value = bind('face_outline_line_width'),
-                            enabled = true,
-                            tooltip = 'Face outline line width',
-                        },
-                        f:slider {
-                            min = 1,
-                            max = 10,
-                            integral = true,
-                            value = bind('face_outline_line_width'),
-                            enabled = true,
-                            tooltip = 'Face outline line width',
-                            place_vertical = 0.5,
-                        },
-                    }, -- row
-                    f:static_text {
-                        title = 'Face outline colour:',
-                    },
-                    f:popup_menu {
-                        items = menu_colour_list,
-                        value = bind 'face_outline_colour',
-                        tooltip = "Face outline box colour (if enabled)",
-                        enabled = bind 'draw_face_outlines',
-                    },
-                    f:static_text {
-                        title = 'Label outline colour:',
-                    },
-                    f:popup_menu {
-                        items = menu_colour_list,
-                        value = bind 'label_outline_colour',
-                        tooltip = "Label outline box colour (if enabled)",
-                        enabled = bind 'draw_label_boxes',
-                    },
-                }, -- column
-            }, -- group_box
-        }, -- column
-        f:column {
-            f:group_box { -- Label options
-                title = "Label settings (or initial values if dynamic)",
-                f:column {
-                    f:static_text {
-                        title = 'Label position:',
-                    },
-                    f:popup_menu {
-                        items = menu_positions_list,
-                        value = bind 'default_position',
-                        tooltip = "Label position (or initial position if dynamic)",
-                        enabled = bind 'draw_label_text',
-                    },
-                    --f:static_text {
-                    --    title = 'Label alignment:',
-                    --},
-                    --f:popup_menu {
-                    --    items = menu_align_list,
-                    --    value = bind 'default_align',
-                    --    tooltip = "Label alignment (or initial alignment if dynamic)",
-                    --    enabled = bind 'draw_label_text',
-                    --},
-                    f:static_text {
-                        title = 'Label number of rows:',
-                    },
-                    f:row {
-                        f:edit_field {
-                            width_in_digits = 1,
-                            place_horizontal = 0.5,
-                            min = 1,
-                            max = 4,
-                            precision = 0,
-                            increment = 1,
-                            value = bind('default_num_rows'),
-                            enabled = bind('draw_label_text'),
-                            tooltip = "Number of text lines for label (or initial value if dynamic)",
-                        },
-                        f:slider {
-                            min = 1,
-                            max = 4,
-                            integral = true,
-                            value = bind('default_num_rows'),
-                            enabled = bind('draw_label_text'),
-                            tooltip = "Number of text lines for label (or initial value if dynamic)",
-                            place_vertical = 0.5,
-                        },
-                    }, -- row
-                }, -- column
-            }, -- group_box
-            f:group_box { -- Label options
-                show_title = false,
-                f:static_text {
-                    title = 'Image margin:',
-                },
-                f:row {
-                    f:edit_field {
-                        width_in_digits = 3,
-                        place_horizontal = 0.5,
-                        min = 1,
-                        max = 100,
-                        precision = 0,
-                        increment = 1,
-                        value = bind('image_margin'),
-                        enabled = bind('label_auto_optimise'),
-                        tooltip = "Image margin, so labels don't go right to the edge",
-                    },
-                    f:slider {
-                        min = 1,
-                        max = 100,
-                        integral = true,
-                        value = bind('image_margin'),
-                        enabled = bind('label_auto_optimise'),
-                        tooltip = "Image margin, so labels don't go right to the edge",
-                        place_vertical = 0.5,
-                    },
-                }, -- row
-            }, -- group_box
-        }, -- column
-    } -- row; labelling config
-        
-    return result
-end
-
-function list_to_text(propertyTable, list)
-    local string = '' -- initial value
-    for i, entry in pairs(list) do
-        if i ~= 1 then string = string .. ', ' end
-        string = string .. tostring(entry)
-    end
-    return string
-end
-
---------------------------------------------------------------------------------
--- dialog section for dynamic label options
-
-function exportDynamicLabellingView(f, propertyTable)
-    local bind = LrView.bind
-    local share = LrView.share
-    
-    result = f:row { -- labelling config
-        f:column {
-            f:group_box {
-                title = LOC "$$$/FaceLabelling/ExportDialog/DynamicLabellingExperiments=Dynamic labelling experiments",
-                f:static_text {
-                    title = 'Experiment list:',
-                },
-                f:static_text {
-                    title = '\t' .. list_to_text(propertyTable, propertyTable.format_experiment_list),
-                },
-                f:static_text {
-                    title = 'Experiment loop limit:',
-                },
-                f:static_text {
-                    title = '\t' .. tostring(propertyTable.experiment_loop_limit),
-                },
-            }, -- group_box
-        }, -- column
-        f:column {
-            f:group_box {
-                title = LOC "$$$/FaceLabelling/ExportDialog/ExperimentOptions=Experiment options",
-                f:static_text {
-                    title = 'Positions:',
-                },
-                f:static_text {
-                    title = '\t' .. list_to_text(propertyTable, propertyTable.positions_experiment_list),
-                },
-                f:static_text {
-                    title = 'Num rows:',
-                },
-                f:static_text {
-                    title = '\t' .. list_to_text(propertyTable, propertyTable.num_rows_experiment_list),
-                },
-                f:static_text {
-                    title = 'Font size (multiples):',
-                },
-                f:static_text {
-                    title = '\t' .. list_to_text(propertyTable, propertyTable.font_size_experiment_list),
-                },
-            }, -- group_box
-        }, -- column
-    } -- row; labelling config
-        
-    return result
-end
-    
---------------------------------------------------------------------------------
--- dialog section for label size options
-
-function exportLabelSettingsView(f, propertyTable)
-    local bind = LrView.bind
-    local share = LrView.share
-    
-    -- expand simple list to list of tuples (title, value) for menu display
-    local list = { 'white', 'black', 'blue', 'red', 'green', 'grey' }
-    local menu_colour_list = {}
-    for i, list_value in pairs(list) do
-        menu_colour_list[i] = {title=list_value, value=list_value}
-    end
-    
-    result = f:row { -- labelling config
-        f:column {
-            f:group_box {
-                title = LOC "$$$/FaceLabelling/ExportDialog/LabelSizeOptions=Label size options",
-                f:radio_button {
-                    title = 'Fixed font size',
-                    value = bind 'label_size_option',
-                    checked_value = 'LabelFixedFontSize',
-                    tooltip = "Fixed font size",
-                },
-                f:radio_button {
-                    title = 'Dynamic font size',
-                    value = bind 'label_size_option',
-                    checked_value = 'LabelDynamicFontSize',
-                    tooltip = "Dynamic font size",
-                },
-            },
-            f:group_box {
-                show_title = false,
-                f:static_text {
-                    title = 'Label font size (if fixed):',
-                },
-                f:row {
-                    f:edit_field {
-                        width_in_digits = 3,
-                        place_horizontal = 0.5,
-                        min = 1,
-                        max = 100,
-                        precision = 0,
-                        increment = 1,
-                        value = bind('label_font_size_fixed'),
-                        enabled = LrBinding.keyEquals('label_size_option', 'LabelFixedFontSize'),
-                        tooltip = "Label font size (if fixed)",
-                    },
-                    f:slider {
-                        min = 1,
-                        max = 100,
-                        integral = true,
-                        value = bind('label_font_size_fixed'),
-                        enabled = LrBinding.keyEquals('label_size_option', 'LabelFixedFontSize'),
-                        tooltip = "Label font size (if fixed)",
-                        place_vertical = 0.5,
-                    },
-                }, -- row
-                f:static_text {
-                    title = 'Label font line width:',
-                },
-                f:row {
-                    f:edit_field {
-                        width_in_digits = 2,
-                        place_horizontal = 0.5,
-                        min = 1,
-                        max = 10,
-                        precision = 0,
-                        increment = 1,
-                        value = bind('font_line_width'),
-                        enabled = true,
-                        tooltip = 'Label font line width',
-                    },
-                    f:slider {
-                        min = 1,
-                        max = 10,
-                        integral = true,
-                        value = bind('font_line_width'),
-                        enabled = true,
-                        tooltip = 'Label font line width',
-                        place_vertical = 0.5,
-                    },
-                }, -- row
-                f:static_text {
-                    title = 'Label font colour:',
-                },
-                f:popup_menu {
-                    items = menu_colour_list,
-                    value = bind 'font_colour',
-                    tooltip = "Label font colour",
-                    enabled = bind 'draw_label_text',
-                },
-                f:static_text {
-                    title = 'Font type:',
-                },
-                f:static_text {
-                    title = bind 'font_type',
-                },
-                f:static_text {
-                    title = 'Label undercolour:',
-                },
-                f:static_text {
-                    title = bind 'label_undercolour',
-                },
-            }, -- group_box
-        }, -- column
-        f:column {
-            f:group_box {
-                title = LOC "$$$/FaceLabelling/ExportDialog/LabelFontSizeDynamic=Label dynamic font size options",
-                f:static_text {
-                    title = 'For each image, check face region sizes, \nand choose label font size',
-                },
-            }, -- group_box
-            f:group_box {
-                show_title = false,
-                f:static_text {
-                    title = 'Desired label width:',
-                },
-                f:static_text {
-                    title = 'For small face regions:',
-                },
-                f:static_text {
-                    title='\tlabel width up to',
-                },
-                f:row {
-                    f:edit_field {
-                        width_in_digits = 4,
-                        place_horizontal = 0.5,
-                        min = 0.1,
-                        max = 10,
-                        precision = 1,
-                        increment = 0.1,
-                        value = bind('label_width_to_region_ratio_small'),
-                        enabled = LrBinding.keyEquals('label_size_option', 'LabelDynamicFontSize'),
-                        tooltip = 'Desired size of label (as multiple of average region width) for small face regions (e.g. 2x)',
-                    },
-                    f:slider {
-                        min = 0.1,
-                        max = 10,
-                        integral = false,
-                        value = bind('label_width_to_region_ratio_small'),
-                        enabled = LrBinding.keyEquals('label_size_option', 'LabelDynamicFontSize'),
-                        tooltip = 'Desired size of label (as multiple of average region width) for small face regions (e.g. 2x)',
-                        place_vertical = 0.5,
-                    },
-                }, -- row
-                f:static_text {
-                    title = '\tx average face region size',
-                },
-                f:static_text {
-                    title = 'For large face regions:',
-                },
-                f:static_text {
-                    title='\tlabel width down to',
-                },
-                f:row {
-                    f:edit_field {
-                        width_in_digits = 4,
-                        place_horizontal = 0.5,
-                        min = 0.1,
-                        max = 10,
-                        precision = 1,
-                        increment = 0.1,
-                        value = bind('label_width_to_region_ratio_large'),
-                        enabled = LrBinding.keyEquals('label_size_option', 'LabelDynamicFontSize'),
-                        tooltip = 'Desired size of label (as multiple of average region width) for large face regions (e.g. 0.5x)',
-                    },
-                    f:slider {
-                        min = 0.1,
-                        max = 10,
-                        integral = false,
-                        value = bind('label_width_to_region_ratio_large'),
-                        enabled = LrBinding.keyEquals('label_size_option', 'LabelDynamicFontSize'),
-                        tooltip = 'Desired size of label (as multiple of average region width) for large face regions (e.g. 0.5x)',
-                        place_vertical = 0.5,
-                    },
-                }, -- row
-                f:static_text {
-                    title = '\tx average face region size',
-                },
-                f:static_text {
-                    title = 'Linear and clipped within that range',
-                },
-            }, -- group_box
-            f:group_box {
-                --title = LOC "$$$/FaceLabelling/ExportDialog/LabelFontSizeDynamic=Dynamic font size",
-                show_title = false,
-                f:static_text {
-                    title = "Where thresholds for face region size is as follows:",
-                },
-                f:static_text {
-                    title = 'Small face region:',
-                },
-                f:static_text {
-                    title='\tif at least',
-                },
-                f:row {
-                    f:edit_field {
-                        width_in_digits = 4,
-                        place_horizontal = 0.5,
-                        min = 0.5,
-                        max = 20,
-                        precision = 1,
-                        increment = 0.1,
-                        value = bind('image_width_to_region_ratio_small'),
-                        enabled = LrBinding.keyEquals('label_size_option', 'LabelDynamicFontSize'),
-                        tooltip = 'Region size (as fraction if image width) that counts as small (as fraction of image size) (e.g. /20)',
-                    },
-                    f:slider {
-                        min = 0.5,
-                        max = 20,
-                        integral = false,
-                        value = bind('image_width_to_region_ratio_small'),
-                        enabled = LrBinding.keyEquals('label_size_option', 'LabelDynamicFontSize'),
-                        tooltip = 'Region size (as fraction if image width) that counts as small (as fraction of image size) (e.g. /20)',
-                        place_vertical = 0.5,
-                    },
-                }, -- row
-                f:static_text {
-                    title = '\tregions across image width',
-                },
-                f:static_text {
-                    title = 'Large face region:',
-                },
-                f:static_text {
-                    title='\tif as few as',
-                },
-                f:row {
-                    f:edit_field {
-                        width_in_digits = 3,
-                        place_horizontal = 0.5,
-                        min = 0.1,
-                        max = 5,
-                        precision = 1,
-                        increment = 0.1,
-                        value = bind('image_width_to_region_ratio_large'),
-                        enabled = LrBinding.keyEquals('label_size_option', 'LabelDynamicFontSize'),
-                        tooltip = 'Region size (as fraction if image width) that counts as large (as fraction of image size) (e.g. /5)',
-                    },
-                    f:slider {
-                        min = 0.1,
-                        max = 5,
-                        integral = false,
-                        value = bind('image_width_to_region_ratio_large'),
-                        enabled = LrBinding.keyEquals('label_size_option', 'LabelDynamicFontSize'),
-                        tooltip = 'Region size (as fraction if image width) that counts as large (as fraction of image size) (e.g. /5)',
-                        place_vertical = 0.5,
-                    },
-                }, -- row
-                f:static_text {
-                    title = '\tregions across image width',
-                },
-            }, -- group_box
-            f:group_box {
-                show_title = false,
-                f:static_text {
-                    title = 'Based on label font-sizing test string:',
-                },
-                f:static_text {
-                    title = bind('test_label'),
-                },
-            }, -- group_box
-        }, -- column
-    } -- row; general export configuration options
-            
-    return result
-end
-
---------------------------------------------------------------------------------
 -- dialog section for export thumbnails
 
 function exportThumbnailsView(f, propertyTable)
     local bind = LrView.bind
     local share = LrView.share
     
-    result = f:group_box { -- export thumbnail images
-            title = "Export thumbnail images",
+    result = f:group_box { -- export face thumbnail images
+            title = "Export face thumbnail images",
             fill_horizontal = 1,
             f:row { -- config options
                 f:checkbox {
-                    title = LOC "$$$/FaceLabelling/ExportDialog/drawLabelText=Export thumbnail images",
-                        value = bind 'export_thumbnails',
+                    title = LOC "$$$/FaceLabelling/ExportDialog/thumbnailExportEnable=Export thumbnails",
+                    value = bind 'export_thumbnails',
                 },
                 f:group_box {
                     title = LOC "$$$/FaceLabelling/ExportDialog/thumbnailFilenameOptions=Thumbnail filename options",
@@ -874,24 +508,864 @@ function exportThumbnailsView(f, propertyTable)
                         enabled = bind 'export_thumbnails',
                     },
                 }, -- group_box
-                f:group_box {
-                    title = LOC "$$$/FaceLabelling/ExportDialog/thumbnail_folder=Thumbnail sub-folder",
-                    f:radio_button {
-                        title = 'thumb sub-folder' ,
-                        value = bind 'thumbnails_folder_option',
-                        checked_value = 'ThumbnailsThumbFolder',
-                        enabled = bind 'export_thumbnails',
-                    },
-                    f:radio_button {
-                        title = 'no sub-folder' ,
-                        value = bind 'thumbnails_folder_option',
-                        checked_value = 'ThumbnailsNoFolder',
-                        enabled = bind 'export_thumbnails',
-                    },
-                }, -- group_box
+                f:column {
+                    f:group_box {
+                        title = LOC "$$$/FaceLabelling/ExportDialog/thumbnail_folder=Thumbnail sub-folder",
+                        fill_horizontal = 1,
+                        f:radio_button {
+                            title = 'thumb sub-folder' ,
+                            value = bind 'thumbnails_folder_option',
+                            checked_value = 'ThumbnailsThumbFolder',
+                            enabled = bind 'export_thumbnails',
+                        },
+                        f:radio_button {
+                            title = 'no sub-folder' ,
+                            value = bind 'thumbnails_folder_option',
+                            checked_value = 'ThumbnailsNoFolder',
+                            enabled = bind 'export_thumbnails',
+                        },
+                    }, -- group_box
+                    f:group_box {
+                        title = LOC "$$$/FaceLabelling/ExportDialog/thumbnail_options=Thumbnail options",
+                        fill_horizontal = 1,
+                        f:checkbox {
+                            title = LOC "$$$/FaceLabelling/ExportDialog/thumbnailExportIfUnnamed=Export thumbnails if unnamed",
+                            tooltip = "Export thumbnails even if they don't have an identified name",
+                            value = bind 'export_thumbnails_if_unnamed',
+                            enabled = bind 'export_thumbnails', 
+                        },
+                    }, -- group_box
+                }, -- column
+
             }, -- row
         } -- group_box; export thumbnail images
     
+    return result
+end
+
+--------------------------------------------------------------------------------
+-- dialog section for export labeled image labelling config
+
+function exportLabellingView(f, propertyTable)
+    local bind = LrView.bind
+    local share = LrView.share
+    
+    -- expand simple list to list of tuples (title, value) for menu display
+    local list = { 'white', 'black', 'blue', 'red', 'green', 'grey' }
+    local menu_colour_list = {}
+    for i, list_value in pairs(list) do
+        menu_colour_list[i] = {title=list_value, value=list_value}
+    end
+    
+    result = f:group_box { -- labelling config
+        title = "Label format options",
+        f:row {
+            fill_horizontal = 1,
+            
+            f:column {
+                fill_horizontal = 0.3,
+                f:static_text {
+                    title = 'Label options:',
+                    enabled = bind 'label_image',
+                },
+            }, -- column
+            
+            f:column {
+                fill_horizontal = 0.3,
+                f:group_box { -- Label options
+                    title = "Label format options",
+                    fill_horizontal = 1,
+                    
+                    f:static_text {
+                        title = 'Face outline line width:',
+                        enabled = LrBinding.andAllKeys( 'label_image', 'draw_face_outlines'),
+                    },
+                    f:row {
+                        f:edit_field {
+                            width_in_digits = 2,
+                            place_horizontal = 0.5,
+                            min = 1,
+                            max = 10,
+                            precision = 0,
+                            increment = 1,
+                            value = bind('face_outline_line_width'),
+                            enabled = true,
+                            tooltip = 'Face outline line width',
+                            enabled = LrBinding.andAllKeys( 'label_image', 'draw_face_outlines'),
+                        },
+                        f:slider {
+                            min = 1,
+                            max = 10,
+                            integral = true,
+                            value = bind('face_outline_line_width'),
+                            enabled = true,
+                            tooltip = 'Face outline line width',
+                            place_vertical = 0.5,
+                            enabled = LrBinding.andAllKeys( 'label_image', 'draw_face_outlines'),
+                        },
+                    }, -- row
+                    f:static_text {
+                        title = 'Face outline colour:',
+                        enabled = LrBinding.andAllKeys( 'label_image', 'draw_face_outlines'),
+                    },
+                    f:popup_menu {
+                        items = menu_colour_list,
+                        value = bind 'face_outline_colour',
+                        tooltip = "Face outline box colour (if enabled)",
+                        enabled = LrBinding.andAllKeys( 'label_image', 'draw_face_outlines'),
+                    },
+
+                    f:static_text {
+                        title = 'Label outline line width:',
+                        enabled = LrBinding.andAllKeys( 'label_image', 'draw_label_boxes'),
+                    },
+                    f:row {
+                        f:edit_field {
+                            width_in_digits = 2,
+                            place_horizontal = 0.5,
+                            min = 1,
+                            max = 10,
+                            precision = 0,
+                            increment = 1,
+                            value = bind('label_outline_line_width'),
+                            enabled = true,
+                            tooltip = 'Label outline line width',
+                            enabled = LrBinding.andAllKeys( 'label_image', 'draw_label_boxes'),
+                        },
+                        f:slider {
+                            min = 1,
+                            max = 10,
+                            integral = true,
+                            value = bind('label_outline_line_width'),
+                            enabled = true,
+                            tooltip = 'Label outline line width',
+                            place_vertical = 0.5,
+                            enabled = LrBinding.andAllKeys( 'label_image', 'draw_label_boxes'),
+                        },
+                    }, -- row
+                    f:static_text {
+                        title = 'Label outline colour:',
+                        enabled = LrBinding.andAllKeys( 'label_image', 'draw_label_boxes'),
+                    },
+                    f:popup_menu {
+                        items = menu_colour_list,
+                        value = bind 'label_outline_colour',
+                        tooltip = "Label outline box colour (if enabled)",
+                        enabled = LrBinding.andAllKeys( 'label_image', 'draw_label_boxes'),
+                    },
+                    
+                    f:static_text {
+                        title = 'Image margin:',
+                        enabled = LrBinding.andAllKeys( 'label_image', 'draw_label_text' ),
+                    },
+                    f:row {
+                        f:edit_field {
+                            width_in_digits = 3,
+                            place_horizontal = 0.5,
+                            min = 1,
+                            max = 100,
+                            precision = 0,
+                            increment = 1,
+                            value = bind('image_margin'),
+                            enabled = LrBinding.andAllKeys( 'label_image', 'draw_label_text' ),
+                            tooltip = "Image margin, so labels don't go right to the edge",
+                        },
+                        f:slider {
+                            min = 1,
+                            max = 100,
+                            integral = true,
+                            value = bind('image_margin'),
+                            enabled = LrBinding.andAllKeys( 'label_image', 'draw_label_text' ),
+                            tooltip = "Image margin, so labels don't go right to the edge",
+                            place_vertical = 0.5,
+                        },
+                    }, -- row
+                }, -- group_box
+            }, -- column
+            
+            f:column {
+                f:group_box {
+                    title = 'Label options',
+                    f:static_text {
+                        title = 'Label font line width:',
+                        enabled = LrBinding.andAllKeys( 'label_image', 'draw_label_text'),
+                    },
+                    f:row {
+                        f:edit_field {
+                            width_in_digits = 2,
+                            place_horizontal = 0.5,
+                            min = 1,
+                            max = 10,
+                            precision = 0,
+                            increment = 1,
+                            value = bind('font_line_width'),
+                            enabled = LrBinding.andAllKeys( 'label_image', 'draw_label_text'),
+                            tooltip = 'Label font line width',
+                        },
+                        f:slider {
+                            min = 1,
+                            max = 10,
+                            integral = true,
+                            value = bind('font_line_width'),
+                            enabled = LrBinding.andAllKeys( 'label_image', 'draw_label_text'),
+                            tooltip = 'Label font line width',
+                            place_vertical = 0.5,
+                            width = 50,
+                        },
+                    }, -- row
+                    f:static_text {
+                        title = 'Label font colour:',
+                        enabled = LrBinding.andAllKeys( 'label_image', 'draw_label_text'),
+                    },
+                    f:popup_menu {
+                        items = menu_colour_list,
+                        value = bind 'font_colour',
+                        place_horizontal = 0.5,
+                        tooltip = "Label font colour",
+                        enabled = LrBinding.andAllKeys( 'label_image', 'draw_label_text'),
+                    },
+                    f:static_text {
+                        title = 'Font type:',
+                        enabled = LrBinding.andAllKeys( 'label_image', 'draw_label_text'),
+                    },
+                    f:static_text {
+                        title = bind 'font_type',
+                        place_horizontal = 0.5,
+                        enabled = LrBinding.andAllKeys( 'label_image', 'draw_label_text'),
+                    },
+                    f:static_text {
+                        title = 'Label undercolour:',
+                        enabled = LrBinding.andAllKeys( 'label_image', 'draw_label_text'),
+                    },
+                    f:static_text {
+                        title = bind 'label_undercolour',
+                        place_horizontal = 0.5,
+                        enabled = LrBinding.andAllKeys( 'label_image', 'draw_label_text'),
+                    },
+                }, -- group_box
+            }, -- column
+        }, -- row
+    } -- group_box; labelling config
+        
+    return result
+end
+
+function list_to_text(propertyTable, list)
+    local string = '' -- initial value
+    for i, entry in pairs(list) do
+        if i ~= 1 then string = string .. ', ' end
+        string = string .. tostring(entry)
+    end
+    return string
+end
+
+--------------------------------------------------------------------------------
+-- dialog section for dynamic label options
+
+function exportDynamicLabellingView(f, propertyTable)
+    local bind = LrView.bind
+    local share = LrView.share
+    
+    -- expand simple list to list of tuples (title, value) for menu display
+    local list = {'below', 'above', 'left', 'right'}
+    local menu_positions_list = {}
+    for i, list_value in pairs(list) do
+        menu_positions_list[i] = {title=list_value, value=list_value}
+    end
+    
+    --local list = { 1, 2, 3, 4 }
+    --local menu_num_rows_list = {}
+    --for i, list_value in pairs(list) do
+    --    menu_num_rows_list[i] = {title=list_value, value=list_value}
+    --end
+    
+    result = f:column { -- labelling config
+        f:row {
+            f:column {
+                fill_horizontal = 0.25,
+                f:group_box {
+                    title = LOC "$$$/FaceLabelling/ExportDialog/LabelPositionOptions=Label position options",
+                    f:radio_button {
+                        title = 'Fixed label positions',
+                        value = bind 'label_auto_optimise',
+                        checked_value = false,
+                        tooltip = "Fixed label positions",
+                        enabled = bind 'label_image',
+                    },
+                    f:radio_button {
+                        title = 'Dynamic label positions',
+                        height_in_lines = 2,
+                        value = bind 'label_auto_optimise',
+                        checked_value = true,
+                        tooltip = "Dynamic label positions",
+                        enabled = bind 'label_image',
+                    },
+                },
+    
+                f:group_box {
+                    title = LOC "$$$/FaceLabelling/ExportDialog/DynamicLabellingSearch=Dynamic labelling search",
+                    f:checkbox {
+                        title = LOC "$$$/FaceLabelling/ExportDialog/DynamicLabelPosition=Position search",
+                        value = bind 'label_position_search',
+                        enabled = LrBinding.andAllKeys( 'label_image', 'label_auto_optimise' ),
+                    },
+                    f:checkbox {
+                        title = LOC "$$$/FaceLabelling/ExportDialog/DynamicLabelNumRows=Num rows search",
+                        value = bind 'label_num_rows_search',
+                        enabled = LrBinding.andAllKeys( 'label_image', 'label_auto_optimise' ),
+                    },
+                    f:checkbox {
+                        title = LOC "$$$/FaceLabelling/ExportDialog/DynamicLabelFontSize=Font size search",
+                        value = bind 'label_font_size_search',
+                        enabled = LrBinding.andAllKeys( 'label_image', 'label_auto_optimise' ),
+                    },
+                }, -- group_box
+            }, -- column
+            
+            f:column {
+                fill_horizontal = 0.25,
+                f:group_box {
+                    title = "Label settings or initial values",
+                    f:static_text {
+                        title = 'Label position:',
+                        enabled = LrBinding.andAllKeys( 'label_image', 'draw_label_text'),
+                    },
+                    f:popup_menu {
+                        items = menu_positions_list,
+                        value = bind 'default_position',
+                        tooltip = "Label position (or initial position if dynamic)",
+                        enabled = LrBinding.andAllKeys( 'label_image', 'draw_label_text'),
+                        place_horizontal = 0.1,
+                    },
+                    f:static_text {
+                        title = 'Label number of rows:',
+                        enabled = LrBinding.andAllKeys( 'label_image', 'draw_label_text'),
+                    },
+                    --f:popup_menu {
+                    --    items = menu_num_rows_list,
+                    --    value = bind 'default_num_rows',
+                    --    tooltip = "Number of text lines for label (or initial value if dynamic)",
+                    --    enabled = LrBinding.andAllKeys( 'label_image', 'draw_label_text'),
+                    --    place_horizontal = 0.1,
+                    --},
+                    f:row {
+                        f:edit_field {
+                            width_in_digits = 1,
+                            place_horizontal = 0.1,
+                            min = 1,
+                            max = 4,
+                            precision = 0,
+                            increment = 1,
+                            value = bind('default_num_rows'),
+                            enabled = LrBinding.andAllKeys( 'label_image', 'draw_label_text'),
+                            tooltip = "Number of text lines for label (or initial value if dynamic)",
+                        },
+                        f:slider {
+                            min = 1,
+                            max = 4,
+                            integral = true,
+                            value = bind('default_num_rows'),
+                            enabled = LrBinding.andAllKeys( 'label_image', 'draw_label_text'),
+                            tooltip = "Number of text lines for label (or initial value if dynamic)",
+                            place_vertical = 0.5,
+                            width = 50
+                        },
+                    }, -- row
+                    f:static_text {
+                        title = 'Label font size:',
+                        enabled = LrBinding.andAllKeys( 'label_image', 'draw_label_text'),
+                    },
+                    f:row {
+                        f:edit_field {
+                            width_in_digits = 3,
+                            place_horizontal = 0.1,
+                            min = 1,
+                            max = 100,
+                            precision = 0,
+                            increment = 1,
+                            value = bind('label_font_size_fixed'),
+                            enabled = LrBinding.andAllKeys( 'label_image', 'draw_label_text'),
+                            tooltip = "Label font size",
+                        },
+                        f:slider {
+                            min = 1,
+                            max = 100,
+                            integral = true,
+                            value = bind('label_font_size_fixed'),
+                            enabled = LrBinding.andAllKeys( 'label_image', 'draw_label_text'),
+                            tooltip = "Label font size",
+                            place_vertical = 0.5,
+                            width = 50
+                        },
+                    }, -- row
+                }, -- group_box
+            }, -- column
+            
+            f:column {
+                fill_horizontal = 0.6,
+                f:group_box {
+                    f:static_text {
+                        title = 'Positions to try:',
+                        enabled = LrBinding.andAllKeys( 'label_image', 'label_auto_optimise', 'label_position_search'),
+                    },
+                    f:row {
+                        f:checkbox {
+                            title = 'below',
+                            enabled = LrBinding.andAllKeys( 'label_image', 'label_auto_optimise', 'label_position_search'),
+                            value = bind 'experiment_enable_position_below',
+                            tooltip = 'try label below image; (default position can not be disabled)',
+                        },
+                        f:checkbox {
+                            title = 'above',
+                            enabled = LrBinding.andAllKeys( 'label_image', 'label_auto_optimise', 'label_position_search'),
+                            value = bind 'experiment_enable_position_above',
+                            tooltip = 'try label above image; (default position can not be disabled)',
+                        },
+                        f:checkbox {
+                            title = 'left',
+                            enabled = LrBinding.andAllKeys( 'label_image', 'label_auto_optimise', 'label_position_search'),
+                            value = bind 'experiment_enable_position_left',
+                            tooltip = 'try label left of image; (default position can not be disabled)',
+                        },
+                        f:checkbox {
+                            title = 'right',
+                            enabled = LrBinding.andAllKeys( 'label_image', 'label_auto_optimise', 'label_position_search'),
+                            value = bind 'experiment_enable_position_right',
+                            tooltip = 'try label right of image; (default position can not be disabled)',
+                        },
+                    }, -- row
+                    f:static_text {
+                        title = 'Number of text rows to try:',
+                        enabled = LrBinding.andAllKeys( 'label_image', 'label_auto_optimise', 'label_num_rows_search'),
+                    },
+                    f:row {
+                        f:checkbox {
+                            title = '1',
+                            enabled = LrBinding.andAllKeys( 'label_image', 'label_auto_optimise', 'label_num_rows_search'),
+                            value = bind 'experiment_enable_num_rows_1',
+                            tooltip = 'try 1 row of text; (default num_rows can not be disabled)',
+                        },
+                        f:checkbox {
+                            title = '2',
+                            enabled = LrBinding.andAllKeys( 'label_image', 'label_auto_optimise', 'label_num_rows_search'),
+                            value = bind 'experiment_enable_num_rows_2',
+                            tooltip = 'try 2 rows of text; (default num_rows can not be disabled)',
+                        },
+                        f:checkbox {
+                            title = '3',
+                            enabled = LrBinding.andAllKeys( 'label_image', 'label_auto_optimise', 'label_num_rows_search'),
+                            value = bind 'experiment_enable_num_rows_3',
+                            tooltip = 'try 2 rows of text; (default num_rows can not be disabled)',
+                        },
+                        f:checkbox {
+                            title = '4',
+                            enabled = LrBinding.andAllKeys( 'label_image', 'label_auto_optimise', 'label_num_rows_search'),
+                            value = bind 'experiment_enable_num_rows_4',
+                            tooltip = 'try 4 rows of text; (default num_rows can not be disabled)',
+                        },
+                    }, -- row
+                    f:static_text {
+                        title = 'Font size multiples to try:',
+                        enabled = LrBinding.andAllKeys( 'label_image', 'label_auto_optimise', 'label_font_size_search'),
+                    },
+                    f:row {
+                        f:checkbox {
+                            title = '1',
+                            enabled = LrBinding.andAllKeys( 'label_image', 'label_auto_optimise', 'label_font_size_search'),
+                            value = bind 'experiment_enable_font_size_multiple_1',
+                        },
+                        f:checkbox {
+                            title = '0.75',
+                            enabled = LrBinding.andAllKeys( 'label_image', 'label_auto_optimise', 'label_font_size_search'),
+                            value = bind 'experiment_enable_font_size_multiple_0_75',
+                        },
+                        f:checkbox {
+                            title = '0.5',
+                            enabled = LrBinding.andAllKeys( 'label_image', 'label_auto_optimise', 'label_font_size_search'),
+                            value = bind 'experiment_enable_font_size_multiple_0_5',
+                        },
+                        f:checkbox {
+                            title = '0.25',
+                            enabled = LrBinding.andAllKeys( 'label_image', 'label_auto_optimise', 'label_font_size_search'),
+                            value = bind 'experiment_enable_font_size_multiple_0_25',
+                        },
+                    }, -- row
+                    f:static_text {
+                        title = 'Experiment loop limit:',
+                        enabled = LrBinding.andAllKeys( 'label_image', 'label_auto_optimise'),
+                    },
+                    f:static_text {
+                        title = '\t' .. tostring(propertyTable.experiment_loop_limit),
+                        enabled = LrBinding.andAllKeys( 'label_image', 'label_auto_optimise'),
+                    },
+                }, -- group_box
+            }, -- column
+        }, -- row
+        
+        f:row {
+            f:column {
+                f:group_box {
+                    title = LOC "$$$/FaceLabelling/ExportDialog/DynamicLabellingExperiments=Dynamic labelling experiments",
+                    f:static_text {
+                        title = 'Experiment list:',
+                    },
+                    f:static_text {
+                        title = LrView.bind { key = 'format_experiment_list',
+                            transform = function( value, fromTable )
+                                if fromTable then return list_to_text(propertyTable, value) end
+                                return LrBinding.kUnsupportedDirection -- to avoid updating the property table
+                            end,
+                        },
+                        place_horizontal = 0.1,
+                    },
+                }, -- group_box
+            }, -- column
+            f:column {
+                f:group_box {
+                    title = LOC "$$$/FaceLabelling/ExportDialog/ExperimentOptions=Experiment options",
+                    f:static_text {
+                        title = 'Positions:',
+                    },
+                    f:static_text {
+                        title = LrView.bind { key = 'positions_experiment_list',
+                            transform = function( value, fromTable )
+                                if fromTable then return list_to_text(propertyTable, value) end
+                                return LrBinding.kUnsupportedDirection -- to avoid updating the property table
+                            end,
+                        },
+                        place_horizontal = 0.1,
+                    },
+                    f:static_text {
+                        title = 'Num rows:',
+                    },
+                    f:static_text {
+                        title = LrView.bind { key = 'num_rows_experiment_list',
+                            transform = function( value, fromTable )
+                                if fromTable then return list_to_text(propertyTable, value) end
+                                return LrBinding.kUnsupportedDirection -- to avoid updating the property table
+                            end,
+                        },
+                        place_horizontal = 0.1,
+                    },
+                    f:static_text {
+                        title = 'Font size (multiples):',
+                    },
+                    f:static_text {
+                        title = LrView.bind { key = 'font_size_experiment_list',
+                            transform = function( value, fromTable )
+                                if fromTable then return list_to_text(propertyTable, value) end
+                                return LrBinding.kUnsupportedDirection -- to avoid updating the property table
+                            end,
+                        },
+                        place_horizontal = 0.1,
+                    },
+                }, -- group_box
+            }, -- column
+        }, -- row
+    } -- column; labelling config
+        
+    return result
+end
+    
+--------------------------------------------------------------------------------
+-- dialog section for label size options
+
+function exportLabelSettingsView(f, propertyTable)
+    local bind = LrView.bind
+    local share = LrView.share
+    
+    result = f:row { -- labelling config
+        f:column {
+            f:group_box {
+                title = LOC "$$$/FaceLabelling/ExportDialog/LabelSizeOptions=Label font size",
+                f:radio_button {
+                    title = 'Fixed font size',
+                    value = bind 'label_size_option',
+                    checked_value = 'LabelFixedFontSize',
+                    tooltip = "Fixed font size",
+                    enabled = LrBinding.andAllKeys( 'label_image', 'draw_label_text'),
+                },
+                f:radio_button {
+                    title = 'Dynamic font size',
+                    value = bind 'label_size_option',
+                    checked_value = 'LabelDynamicFontSize',
+                    tooltip = "Dynamic font size",
+                    enabled = LrBinding.andAllKeys( 'label_image', 'draw_label_text'),
+                },
+            },
+        }, -- column
+        
+        f:column {
+            f:group_box {
+                title = LOC "$$$/FaceLabelling/ExportDialog/LabelFontSizeDynamic=Desired label width",
+                fill_horizontal = 1,
+                f:static_text {
+                    title = 'For each image, \ncheck face region sizes, \nand choose label font size:',
+                    enabled = LrView.bind { keys = {'label_image', 'label_size_option'}, 
+                                           operation = function(binding, values, fromTable)
+                                               return values.label_image and (values.label_size_option == 'LabelDynamicFontSize')
+                                           end },
+                },
+                fill_horizontal = 1,
+                f:static_text {
+                    title = 'Desired label width:',
+                    enabled = LrView.bind { keys = {'label_image', 'label_size_option'}, 
+                                           operation = function(binding, values, fromTable)
+                                               return values.label_image and (values.label_size_option == 'LabelDynamicFontSize')
+                                           end },
+                },
+                f:static_text {
+                    title = 'For small face regions:',
+                    enabled = LrView.bind { keys = {'label_image', 'label_size_option'}, 
+                                           operation = function(binding, values, fromTable)
+                                               return values.label_image and (values.label_size_option == 'LabelDynamicFontSize')
+                                           end },
+                },
+                f:static_text {
+                    title='label width up to',
+                    enabled = LrView.bind { keys = {'label_image', 'label_size_option'}, 
+                                           operation = function(binding, values, fromTable)
+                                               return values.label_image and (values.label_size_option == 'LabelDynamicFontSize')
+                                           end },
+                    place_horizontal = 0.1,
+                },
+                f:row {
+                    f:edit_field {
+                        width_in_digits = 4,
+                        place_horizontal = 0.1,
+                        min = 0.1,
+                        max = 10,
+                        precision = 1,
+                        increment = 0.1,
+                        value = bind('label_width_to_region_ratio_small'),
+                        enabled = LrView.bind { keys = {'label_image', 'label_size_option'}, 
+                                               operation = function(binding, values, fromTable)
+                                                   return values.label_image and (values.label_size_option == 'LabelDynamicFontSize')
+                                               end },
+                        tooltip = 'Desired size of label (as multiple of average region width) for small face regions (e.g. 2x)',
+                    },
+                    f:slider {
+                        min = 0.1,
+                        max = 10,
+                        integral = false,
+                        value = bind('label_width_to_region_ratio_small'),
+                        enabled = LrView.bind { keys = {'label_image', 'label_size_option'}, 
+                                               operation = function(binding, values, fromTable)
+                                                   return values.label_image and (values.label_size_option == 'LabelDynamicFontSize')
+                                               end },
+                        tooltip = 'Desired size of label (as multiple of average region width) for small face regions (e.g. 2x)',
+                        place_vertical = 0.5,
+                        width = 50,
+                    },
+                }, -- row
+                f:static_text {
+                    title = 'x average face region size',
+                    enabled = LrView.bind { keys = {'label_image', 'label_size_option'}, 
+                                           operation = function(binding, values, fromTable)
+                                               return values.label_image and (values.label_size_option == 'LabelDynamicFontSize')
+                                           end },
+                    place_horizontal = 0.1,
+                },
+                f:static_text {
+                    title = 'For large face regions:',
+                    enabled = LrView.bind { keys = {'label_image', 'label_size_option'}, 
+                                           operation = function(binding, values, fromTable)
+                                               return values.label_image and (values.label_size_option == 'LabelDynamicFontSize')
+                                           end },
+                },
+                f:static_text {
+                    title='label width down to',
+                    enabled = LrView.bind { keys = {'label_image', 'label_size_option'}, 
+                                           operation = function(binding, values, fromTable)
+                                               return values.label_image and (values.label_size_option == 'LabelDynamicFontSize')
+                                           end },
+                    place_horizontal = 0.1,
+                },
+                f:row {
+                    f:edit_field {
+                        width_in_digits = 4,
+                        place_horizontal = 0.1,
+                        min = 0.1,
+                        max = 10,
+                        precision = 1,
+                        increment = 0.1,
+                        value = bind('label_width_to_region_ratio_large'),
+                        enabled = LrView.bind { keys = {'label_image', 'label_size_option'}, 
+                                               operation = function(binding, values, fromTable)
+                                                   return values.label_image and (values.label_size_option == 'LabelDynamicFontSize')
+                                               end },
+                        tooltip = 'Desired size of label (as multiple of average region width) for large face regions (e.g. 0.5x)',
+                    },
+                    f:slider {
+                        min = 0.1,
+                        max = 10,
+                        integral = false,
+                        value = bind('label_width_to_region_ratio_large'),
+                    enabled = LrView.bind { keys = {'label_image', 'label_size_option'}, 
+                                           operation = function(binding, values, fromTable)
+                                               return values.label_image and (values.label_size_option == 'LabelDynamicFontSize')
+                                           end },
+                        tooltip = 'Desired size of label (as multiple of average region width) for large face regions (e.g. 0.5x)',
+                        place_vertical = 0.5,
+                        width = 50,
+                    },
+                }, -- row
+                f:static_text {
+                    title = 'x average face region size',
+                    enabled = LrView.bind { keys = {'label_image', 'label_size_option'}, 
+                                           operation = function(binding, values, fromTable)
+                                               return values.label_image and (values.label_size_option == 'LabelDynamicFontSize')
+                                           end },
+                    place_horizontal = 0.1,
+                },
+                f:static_text {
+                    title = 'Linear and clipped within that range',
+                    enabled = LrView.bind { keys = {'label_image', 'label_size_option'}, 
+                                           operation = function(binding, values, fromTable)
+                                               return values.label_image and (values.label_size_option == 'LabelDynamicFontSize')
+                                           end },
+                },
+            }, -- group_box
+        }, -- column
+        
+        f:column {
+            f:group_box {
+                title = LOC "$$$/FaceLabelling/ExportDialog/LabelFontSizeDynamicRegionDefinition=Region size definitions",
+                --show_title = false,
+                f:static_text {
+                    title = "Where thresholds for \nface region size \nare as follows:",
+                    enabled = LrView.bind { keys = {'label_image', 'label_size_option'}, 
+                                           operation = function(binding, values, fromTable)
+                                               return values.label_image and (values.label_size_option == 'LabelDynamicFontSize')
+                                           end },
+                },
+                f:static_text {
+                    title = 'Small face region:',
+                    enabled = LrView.bind { keys = {'label_image', 'label_size_option'}, 
+                                           operation = function(binding, values, fromTable)
+                                               return values.label_image and (values.label_size_option == 'LabelDynamicFontSize')
+                                           end },
+                },
+                f:static_text {
+                    title='if at least',
+                    place_horizontal = 0.1,
+                    enabled = LrView.bind { keys = {'label_image', 'label_size_option'}, 
+                                           operation = function(binding, values, fromTable)
+                                               return values.label_image and (values.label_size_option == 'LabelDynamicFontSize')
+                                           end },
+                },
+                f:row {
+                    f:edit_field {
+                        width_in_digits = 4,
+                        place_horizontal = 0.1,
+                        min = 0.5,
+                        max = 20,
+                        precision = 1,
+                        increment = 0.1,
+                        value = bind('image_width_to_region_ratio_small'),
+                        enabled = LrView.bind { keys = {'label_image', 'label_size_option'}, 
+                                               operation = function(binding, values, fromTable)
+                                                   return values.label_image and (values.label_size_option == 'LabelDynamicFontSize')
+                                               end },
+                        tooltip = 'Region size (as fraction if image width) that counts as small (as fraction of image size) (e.g. /20)',
+                    },
+                    f:slider {
+                        min = 0.5,
+                        max = 20,
+                        integral = false,
+                        value = bind('image_width_to_region_ratio_small'),
+                        enabled = LrView.bind { keys = {'label_image', 'label_size_option'}, 
+                                               operation = function(binding, values, fromTable)
+                                                   return values.label_image and (values.label_size_option == 'LabelDynamicFontSize')
+                                               end },
+                        tooltip = 'Region size (as fraction if image width) that counts as small (as fraction of image size) (e.g. /20)',
+                        place_vertical = 0.5,
+                        width = 50,
+                    },
+                }, -- row
+                f:static_text {
+                    title = 'regions across image width',
+                    enabled = LrView.bind { keys = {'label_image', 'label_size_option'}, 
+                                           operation = function(binding, values, fromTable)
+                                               return values.label_image and (values.label_size_option == 'LabelDynamicFontSize')
+                                           end },
+                    place_horizontal = 0.1,
+                },
+                f:static_text {
+                    title = 'Large face region:',
+                    enabled = LrView.bind { keys = {'label_image', 'label_size_option'}, 
+                                           operation = function(binding, values, fromTable)
+                                               return values.label_image and (values.label_size_option == 'LabelDynamicFontSize')
+                                           end },
+                },
+                f:static_text {
+                    title='if as few as',
+                    enabled = LrView.bind { keys = {'label_image', 'label_size_option'}, 
+                                           operation = function(binding, values, fromTable)
+                                               return values.label_image and (values.label_size_option == 'LabelDynamicFontSize')
+                                           end },
+                    place_horizontal = 0.1,
+                },
+                f:row {
+                    f:edit_field {
+                        width_in_digits = 3,
+                        place_horizontal = 0.1,
+                        min = 0.1,
+                        max = 5,
+                        precision = 1,
+                        increment = 0.1,
+                        value = bind('image_width_to_region_ratio_large'),
+                        enabled = LrView.bind { keys = {'label_image', 'label_size_option'}, 
+                                               operation = function(binding, values, fromTable)
+                                                   return values.label_image and (values.label_size_option == 'LabelDynamicFontSize')
+                                               end },
+                        tooltip = 'Region size (as fraction if image width) that counts as large (as fraction of image size) (e.g. /5)',
+                    },
+                    f:slider {
+                        min = 0.1,
+                        max = 5,
+                        integral = false,
+                        value = bind('image_width_to_region_ratio_large'),
+                        enabled = LrView.bind { keys = {'label_image', 'label_size_option'}, 
+                                               operation = function(binding, values, fromTable)
+                                                   return values.label_image and (values.label_size_option == 'LabelDynamicFontSize')
+                                               end },
+                        tooltip = 'Region size (as fraction if image width) that counts as large (as fraction of image size) (e.g. /5)',
+                        place_vertical = 0.5,
+                        width = 50,
+                    },
+                }, -- row
+                f:static_text {
+                    title = 'regions across image width',
+                    enabled = LrView.bind { keys = {'label_image', 'label_size_option'}, 
+                                           operation = function(binding, values, fromTable)
+                                               return values.label_image and (values.label_size_option == 'LabelDynamicFontSize')
+                                           end },
+                    place_horizontal = 0.1,
+                },
+            }, -- group_box
+            f:group_box {
+                show_title = false,
+                fill_horizontal = 1,
+                f:static_text {
+                    title = 'Based on test string:',
+                    enabled = LrView.bind { keys = {'label_image', 'label_size_option'}, 
+                                           operation = function(binding, values, fromTable)
+                                               return values.label_image and (values.label_size_option == 'LabelDynamicFontSize')
+                                           end },
+                },
+                f:static_text {
+                    title = bind('test_label'),
+                    enabled = LrView.bind { keys = {'label_image', 'label_size_option'}, 
+                                           operation = function(binding, values, fromTable)
+                                               return values.label_image and (values.label_size_option == 'LabelDynamicFontSize')
+                                           end },
+                    place_horizontal = 0.1,
+                },
+            }, -- group_box
+        }, -- column
+    } -- row; general export configuration options
+            
     return result
 end
 
@@ -971,6 +1445,12 @@ function FLEExportDialogs.sectionsForBottomOfDialog( f, propertyTable )
             f:separator { fill_horizontal = 1 },
             f:view {
                 fill_horizontal = 1,
+                exportThumbnailsView(f, propertyTable),
+            }, -- view
+            
+            f:separator { fill_horizontal = 1 },
+            f:view {
+                fill_horizontal = 1,
                 exportLabellingView(f, propertyTable),
             }, -- view
             
@@ -984,12 +1464,6 @@ function FLEExportDialogs.sectionsForBottomOfDialog( f, propertyTable )
             f:view {
                 fill_horizontal = 1,
                 exportLabelSettingsView(f, propertyTable),
-            }, -- view
-            
-            f:separator { fill_horizontal = 1 },
-            f:view {
-                fill_horizontal = 1,
-                exportThumbnailsView(f, propertyTable),
             }, -- view
             
             f:separator { fill_horizontal = 1 },

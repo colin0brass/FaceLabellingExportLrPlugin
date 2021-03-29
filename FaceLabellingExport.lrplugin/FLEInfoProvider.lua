@@ -124,9 +124,9 @@ function FLEInfoProvider.startDialog( propertyTable )
     -- copy preferences
     -- using prefs rather than exportPresetFields in order to configure
     -- from Lightroom Plug-in Manager, before export
-    for i, list_value in pairs(manager_table) do
-        propertyTable[list_value.key] = prefs[list_value.key]
-    end
+    local is_reset = false
+    property_table_init_from_prefs(propertyTable, manager_table, prefs, is_reset)
+
 
     -- copy log file path for use in dialog
     propertyTable.logFilePath         = logger.logFilePath
