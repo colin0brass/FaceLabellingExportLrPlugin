@@ -99,7 +99,7 @@ end
 function logger.writeLog(level, message)
 	if level <= log_level_threshold then
         message = ifnil(message, '')
-	    if type(message) == 'boolean' then
+	    if type(message) ~= 'string' then -- == 'boolean' then
 	        message = tostring(message)
 	    end
 		myLogger:trace(level .. " : " .. message)
@@ -112,21 +112,28 @@ end
 function logger.writeTable(level, tbl, indent)
     if level <= log_level_threshold then
         if not indent then indent = 0 end
-        for k, v in pairs(tbl) do
-            if type(k) == "table" then
-                logger.writeTable(level, k, indent+1)
-            else
-                formatting = string.rep("  ", indent) .. k .. ": "
-                if type(v) == "table" then
-                    logger.writeLog(level, formatting)
-                    logger.writeTable(level, v, indent+1)
-                elseif type(v) == 'boolean' then
-                    logger.writeLog(level, formatting .. tostring(v))
-                elseif type(v) ~= 'function' then -- don't try to display functions
-                    logger.writeLog(level, formatting .. v)
+        if tbl==nil then
+            logger.writeLog(level, 'nil')
+        elseif type(tbl) ~= 'table' then
+            formatting = string.rep("  ", indent) .. tostring(tbl)
+            logger.writeLog(level, formatting)
+        else
+            for k, v in pairs(tbl) do
+                if type(k) == "table" then
+                    logger.writeTable(level, k, indent+1)
+                else
+                    formatting = string.rep("  ", indent) .. k .. ": "
+                    if type(v) == "table" then
+                        logger.writeLog(level, formatting)
+                        logger.writeTable(level, v, indent+1)
+                    elseif type(v) == 'boolean' then
+                        logger.writeLog(level, formatting .. tostring(v))
+                    elseif type(v) ~= 'function' then -- don't try to display functions
+                        logger.writeLog(level, formatting .. v)
+                    end
                 end
-            end
-        end -- for k, v in pairs(tbl)
+            end -- for k, v in pairs(tbl)
+        end -- if tble==nil; else
     end -- if level <= log_level_threshold
 end
 
