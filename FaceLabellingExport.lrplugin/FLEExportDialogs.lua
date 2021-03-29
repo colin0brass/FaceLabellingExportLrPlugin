@@ -437,6 +437,8 @@ function FLEExportDialogs.endDialog( propertyTable )
     -- from Lightroom Plug-in Manager, before export
     prefs_update_from_property_table(propertyTable, preference_table, prefs)
 
+    -- precautionary to clean-up if interrupted
+    FLEMain.stop()
 end
 
 --------------------------------------------------------------------------------
@@ -819,8 +821,8 @@ function exportDynamicLabellingView(f, propertyTable)
     local menu_experiment_limit_list = {
         { title = "Low", value = 50 },
         { title = "Medium", value = 100 },
-        { title = "High", value = 500 },
-        { title = "Very High", value = 1000 }
+        { title = "High", value = 200 },
+        { title = "Very High", value = 500 }
     }
     
     result = f:column { -- labelling config
@@ -869,7 +871,7 @@ function exportDynamicLabellingView(f, propertyTable)
             f:column {
                 fill_horizontal = 0.25,
                 f:group_box {
-                    title = "Label settings or initial values",
+                    title = "Label initial values",
                     f:static_text {
                         title = 'Label position:',
                         enabled = LrBinding.andAllKeys( 'label_image', 'draw_label_text'),
@@ -941,6 +943,7 @@ function exportDynamicLabellingView(f, propertyTable)
             f:column {
                 fill_horizontal = 0.6,
                 f:group_box {
+                    title = "Label search options",
                     f:static_text {
                         title = 'Positions to try:',
                         enabled = LrBinding.andAllKeys( 'label_image', 'label_auto_optimise', 'label_position_search'),
@@ -951,6 +954,7 @@ function exportDynamicLabellingView(f, propertyTable)
                             enabled = LrBinding.andAllKeys( 'label_image', 'label_auto_optimise', 'label_position_search'),
                             value = bind 'experiment_enable_position_below',
                             tooltip = 'try label below image; (default position can not be disabled)',
+                            place_horizontal = 0.1,
                         },
                         f:checkbox {
                             title = 'above',
@@ -981,6 +985,7 @@ function exportDynamicLabellingView(f, propertyTable)
                             enabled = LrBinding.andAllKeys( 'label_image', 'label_auto_optimise', 'label_num_rows_search'),
                             value = bind 'experiment_enable_num_rows_1',
                             tooltip = 'try 1 row of text; (default num_rows can not be disabled)',
+                            place_horizontal = 0.1,
                         },
                         f:checkbox {
                             title = '2',
@@ -1010,6 +1015,7 @@ function exportDynamicLabellingView(f, propertyTable)
                             title = '1',
                             enabled = LrBinding.andAllKeys( 'label_image', 'label_auto_optimise', 'label_font_size_search'),
                             value = bind 'experiment_enable_font_size_multiple_1',
+                            place_horizontal = 0.1,
                         },
                         f:checkbox {
                             title = '0.75',
@@ -1031,10 +1037,6 @@ function exportDynamicLabellingView(f, propertyTable)
                         title = 'Experiment loop limit:',
                         enabled = LrBinding.andAllKeys( 'label_image', 'label_auto_optimise'),
                     },
-                    --f:static_text {
-                    --    title = '\t' .. tostring(propertyTable.experiment_loop_limit),
-                    --    enabled = LrBinding.andAllKeys( 'label_image', 'label_auto_optimise'),
-                    --},
                     f:popup_menu {
                         items = menu_experiment_limit_list,
                         value = bind 'experiment_loop_limit',

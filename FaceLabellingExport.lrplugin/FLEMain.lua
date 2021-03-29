@@ -1337,7 +1337,7 @@ function optimise_labels(labels_in_higher_level_experiments,
             end
             experiment_loop_count = experiment_loop_count + 1
         else
-            logger.writeLog(3, "- optimise_labels: reached loop count limit, so exiting optimisation with best config found")
+            logger.writeLog(1, "optimise_labels: reached loop count limit, so exiting optimisation with best config found")
             is_finished = true
         end
     end -- while not is_finished

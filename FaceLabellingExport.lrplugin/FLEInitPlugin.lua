@@ -145,7 +145,7 @@ preference_table = {
 	{ key = 'positions_experiment_list', default = nil },
 	{ key = 'num_rows_experiment_list', default = nil },
 	{ key = 'font_size_experiment_list', default = nil },
-	{ key = 'experiment_loop_limit', default = 500, fixed = false},
+	{ key = 'experiment_loop_limit', default = 200, fixed = false},
 	
     -- Export thumbnails preferences
 	{ key = 'export_thumbnails', default = false },
