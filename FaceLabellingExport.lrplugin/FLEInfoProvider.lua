@@ -43,10 +43,6 @@ local LrView            = import("LrView")
 local LrShell           = import("LrShell")
 
 --============================================================================--
--- Local imports
-require("Utils.lua")
-
---============================================================================--
 -- Local variables
 
 local FLEInfoProvider = {}

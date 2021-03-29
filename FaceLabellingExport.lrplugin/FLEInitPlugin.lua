@@ -45,6 +45,8 @@ utils = require "Utils.lua"
 -- Log export session to file for diagnostics & debug
 logger = require("Logger.lua")
 
+--require "strict"
+
 --============================================================================--
 -- Local variables
 
@@ -143,7 +145,7 @@ preference_table = {
 	{ key = 'positions_experiment_list', default = nil },
 	{ key = 'num_rows_experiment_list', default = nil },
 	{ key = 'font_size_experiment_list', default = nil },
-	{ key = 'experiment_loop_limit', default = 100, fixed = true},
+	{ key = 'experiment_loop_limit', default = 500, fixed = false},
 	
     -- Export thumbnails preferences
 	{ key = 'export_thumbnails', default = false },
@@ -264,6 +266,8 @@ function build_experiment_definitions(reset)
     if experiment_definitions.experiment_list.prefs_var and experiment_definitions.experiment_list.list_value then
         prefs[experiment_definitions.experiment_list.prefs_var] = experiment_definitions.experiment_list.list_value
     end
+    
+    return experiment_definitions
 end
 
 --============================================================================--
@@ -311,10 +315,7 @@ end
 
 prefs_init(prefs, manager_table)
 
--- Initialise logger
+-- Initialise logger (after preferences from manager_table)
 logger.init(prefs.logger_filename, prefs.logger_verbosity) -- arguments: log filename, log_level threshold (lowest is most significant)
 
 prefs_init(prefs, preference_table)
-
-local is_reset = false
-build_experiment_definitions(is_reset)

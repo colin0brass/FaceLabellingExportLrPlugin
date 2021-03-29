@@ -53,6 +53,9 @@ require("Utils.lua")
 local Info              = require("Info.lua")
 local versionString = (Info.VERSION.major or '0') .. '.' .. (Info.VERSION.minor or '0')
 
+--local label_experiment_config = {} -- initial value
+--local label_experiments_fully_defined = false -- initial value
+
 FLEExportDialogs = {}
 
 
@@ -105,6 +108,10 @@ local function updateExportStatus( propertyTable )
             message = "Failed to read export path."
         end
         
+        if not propertyTable.label_experiments_fully_defined then
+            message = "Label format experiments were not fully initialised. Try re-loading plugin, or contact author."
+        end
+        
     until true -- only go through once
 
     if message then
@@ -152,43 +159,43 @@ end
 
 --------------------------------------------------------------------------------
 -- Observer function to round slider value to specified number of decimal places
-local function roundOneDecimalPlace(properties, key, value)
-    properties[key] = utils.round(properties[key], 1)
+local function roundOneDecimalPlace(propertyTable, key, value)
+    propertyTable[key] = utils.round(propertyTable[key], 1)
 end
 
 --------------------------------------------------------------------------------
 -- Observer function to update experiment list and ensure consistent with defaults
-function update_experiment_list(properties, key)
+function update_experiment_list(propertyTable, key)
     local exp_list = {} -- initial value
     
     logger.writeLog(5, 'update_experiment_list: ' .. tostring(key))
-    for exp_key, exp in pairs(experiment_definitions.experiments) do
-        exp.is_enabled = properties[exp.dialog_var] -- update status flags
+    for exp_key, exp in pairs(propertyTable.label_experiment_config.experiments) do
+        exp.is_enabled = propertyTable[exp.dialog_var] -- update status flags
         if exp.is_enabled then
             exp_list[#exp_list+1] = exp.key
         end
     end -- for exp_key, exp
 
     local e = experiment_definitions.experiment_list
-    if e.dialog_string_var~=nil then properties[e.dialog_string_var] = exp_list end
+    if e.dialog_string_var~=nil then propertyTable[e.dialog_string_var] = exp_list end
 end
 
 --------------------------------------------------------------------------------
 -- Observer function to update experiment list and ensure consistent with defaults
-function update_experiment_options_list(properties, key)
+function update_experiment_options_list(propertyTable, key)
     logger.writeLog(5, 'update_experiment_options_list: ' .. tostring(key))
-    for exp_key, exp in pairs(experiment_definitions.experiments) do
+    for exp_key, exp in pairs(propertyTable.label_experiment_config.experiments) do
     
-        local default = properties[exp.dialog_initial_var]
+        local default = propertyTable[exp.dialog_initial_var]
         
         local exp_opt_list = {} -- initial value
         for opt_key, opt in pairs(exp.options_list) do
             if opt.dialog_var~=nil then
                 if opt.key == default then
                     logger.writeLog(5, 'update_experiment_options_list: ensure default option remains set: ' .. tostring(opt.dialog_var))
-                    properties[opt.dialog_var] = true -- ensure default option remains set
+                    propertyTable[opt.dialog_var] = true -- ensure default option remains set
                 end
-                opt.is_enabled = properties[opt.dialog_var] -- update status flags
+                opt.is_enabled = propertyTable[opt.dialog_var] -- update status flags
                 if opt.is_enabled then
                     exp_opt_list[#exp_opt_list+1] = opt.key
                 end -- if opt.key == default
@@ -197,24 +204,24 @@ function update_experiment_options_list(properties, key)
             end -- if opt.dialog_var~=nil
         end -- for opt_key, opt
         
-        if exp.dialog_string_var~=nil then properties[exp.dialog_string_var] = exp_opt_list end
+        if exp.dialog_string_var~=nil then propertyTable[exp.dialog_string_var] = exp_opt_list end
         
     end -- for exp_key, exp
 end
 
-local function update_label_defaults(properties, key, value)
+local function update_label_defaults(propertyTable, key, value)
     logger.writeLog(5, "update_label_defaults: " .. tostring(key) .. " : " .. tostring(value))
     local found = false -- initial value
-    for exp_key, exp in pairs(experiment_definitions.experiments) do
+    for exp_key, exp in pairs(propertyTable.label_experiment_config.experiments) do
         if exp.dialog_initial_var == key then
             found = true
-            local default = properties[exp.dialog_initial_var]
+            local default = propertyTable[exp.dialog_initial_var]
             
             for opt_key, opt in pairs(exp.options_list) do
                 if opt.key == default then
                     if opt.dialog_var~=nil then
-                        logger.writeLog(5, "setting: " .. opt.dialog_var)
-                        properties[opt.dialog_var] = true
+                        logger.writeLog(5, "setting: " .. tostring(opt.dialog_var))
+                        propertyTable[opt.dialog_var] = true
                     else
                         logger.writeLog(0, "update_label_defaults: unable to set default for " .. tostring(key))
                     end -- if opt.dialog_var~=nil
@@ -224,10 +231,10 @@ local function update_label_defaults(properties, key, value)
     end -- for exp_key, exp
 
     if not found then
-        logger.writeLog(0, 'ensure_default_is_set: unknown key:' .. key)
+        logger.writeLog(0, 'ensure_default_is_set: unknown key: ' .. tostring(key))
     end
     
-    update_experiment_options_list(properties, key)
+    update_experiment_options_list(propertyTable, key)
 end
 
 --------------------------------------------------------------------------------
@@ -238,46 +245,59 @@ function resetExportPresetFields( propertyTable )
     
     local is_reset = true
     property_table_init_from_prefs(propertyTable, preference_table, prefs, is_reset)
-    set_dialog_properties_for_experiment( propertyTable, experiment_definitions, is_reset )
+    set_dialog_properties_for_experiment( propertyTable, is_reset )
 end
 
-function set_dialog_properties_for_experiment( propertyTable, experiment_definitions, reset )
+function set_dialog_properties_for_experiment( propertyTable, reset )
     logger.writeLog(5, "set_dialog_properties_for_experiment:")
     reset = utils.ifnil(reset, false)
 
-    for exp_key, exp in pairs(experiment_definitions.experiments) do
+    local success = true -- initial value
+
+    for exp_key, exp in pairs(propertyTable.label_experiment_config.experiments) do
         if reset then exp.is_enabled = exp.default_enable end
     
         for opt_key, opt in pairs(exp.options_list) do
             if reset then opt.is_enabled = opt.default_enable end
             
             if opt.is_enabled~=nil and opt.dialog_var~=nil then
-                logger.writeLog(5, "set_dialog_properties_for_experiment: setting " .. opt.key .. " : " .. opt.dialog_var .. " to " .. tostring(opt.is_enabled))
+                logger.writeLog(5, "set_dialog_properties_for_experiment: setting " .. tostring(opt.key) .. " : " .. tostring(opt.dialog_var) .. " to " .. tostring(opt.is_enabled))
                 propertyTable[opt.dialog_var] = opt.is_enabled
             else -- not found
+                success = false
                 logger.writeLog(0, "set_dialog_properties_for_experiment: unknown opt.key: " .. tostring(opt.key))
             end
             
         end -- for opt_key, opt
 
         if exp.is_enabled~=nil and exp.dialog_var~=nil then
-            logger.writeLog(5, "set_dialog_properties_for_experiment: setting " .. exp.key .. " : " .. exp.dialog_var .. " to " .. tostring(exp.is_enabled))
+            logger.writeLog(5, "set_dialog_properties_for_experiment: setting " .. tostring(exp.key) .. " : " .. tostring(exp.dialog_var) .. " to " .. tostring(exp.is_enabled))
             propertyTable[exp.dialog_var] = exp.is_enabled
         else -- not found
+            success = false
             logger.writeLog(0, "set_dialog_properties_for_experiment: unknown exp.key: " .. tostring(exp.key))
         end
         
     end -- for exp_key, exp
+    
+    return success
 end
 
-function init_experiment_structure( propertyTable, experiment_definitions )
+function init_experiment_structure( propertyTable )
     logger.writeLog(5, "init_experiment_structure")
-    experiment_definitions.experiment_list.dialog_var = nil -- not currently used
-    experiment_definitions.experiment_list.dialog_string_var = 'format_experiment_list'
     
-    for exp_key, exp in pairs(experiment_definitions.experiments) do
+    local success = true -- initial value
+    local found_position = false -- initial value
+    local found_num_rows = false -- initial value
+    local found_font_size = false -- initial value
+    
+    propertyTable.label_experiment_config.experiment_list.dialog_var = nil -- not currently used
+    propertyTable.label_experiment_config.experiment_list.dialog_string_var = 'format_experiment_list'
+    
+    for exp_key, exp in pairs(propertyTable.label_experiment_config.experiments) do
         for opt_key, opt in pairs(exp.options_list) do
             if exp.key == 'position' then
+                found_position = true
                 exp.dialog_var = 'label_position_search'
                 exp.dialog_string_var = 'positions_experiment_list'
                 exp.dialog_initial_var = 'default_position'
@@ -287,6 +307,7 @@ function init_experiment_structure( propertyTable, experiment_definitions )
                 elseif opt.key == 'right' then opt.dialog_var = 'experiment_enable_position_right'
                 else opt.dialog_var = nil end
             elseif exp.key == 'num_rows' then
+                found_num_rows = true
                 exp.dialog_var = 'label_num_rows_search'
                 exp.dialog_string_var = 'num_rows_experiment_list'
                 exp.dialog_initial_var = 'default_num_rows'
@@ -296,6 +317,7 @@ function init_experiment_structure( propertyTable, experiment_definitions )
                 elseif opt.key == 4 then opt.dialog_var = 'experiment_enable_num_rows_4'
                 else opt.dialog_var = nil end
             elseif exp.key == 'font_size' then
+                found_font_size = true
                 exp.dialog_var = 'label_font_size_search'
                 exp.dialog_string_var = 'font_size_experiment_list'
                 exp.dialog_initial_var = 'default_font_size_multiple'
@@ -304,9 +326,23 @@ function init_experiment_structure( propertyTable, experiment_definitions )
                 elseif opt.key == 0.5 then opt.dialog_var = 'experiment_enable_font_size_multiple_0_5'
                 elseif opt.key == 0.25 then opt.dialog_var = 'experiment_enable_font_size_multiple_0_25'
                 else opt.dialog_var = nil end
+            else
+                logger.writeLog(0, "init_experiment_structure: unknown exp.key: " .. tostring(exp.key))
+                success = false
             end -- if exp.key
+            
+            if opt.dialog_var == nil then
+                logger.writeLog(0, "init_experiment_structure: unknown opt.key: " .. tostring(opt.key))
+                opt.dialog_var = nil
+                success = false
+            end -- if opt.key==nil
+            
         end -- for opt_key, opt
     end -- for exp_key, exp
+    
+    success = success and (found_position and found_num_rows and found_font_size)
+    
+    return success
 end
 
 --------------------------------------------------------------------------------
@@ -314,6 +350,7 @@ end
 
 function FLEExportDialogs.startDialog( propertyTable )
     local prefs = LrPrefs.prefsForPlugin()
+    local success = true -- initial value
     
     logger.writeLog(0, "Plugin name: " .. Info.LrPluginName)
     logger.writeLog(0, "Plugin version: " .. versionString)
@@ -335,8 +372,16 @@ function FLEExportDialogs.startDialog( propertyTable )
     property_table_init_from_prefs(propertyTable, preference_table, prefs, is_reset)
     
     -- initialise experiment structure
-    init_experiment_structure( propertyTable, experiment_definitions )
-    set_dialog_properties_for_experiment( propertyTable, experiment_definitions )
+    propertyTable.label_experiment_config = {} -- initial value
+    propertyTable.label_experiments_fully_defined = false -- initial value
+    local is_reset = false
+    propertyTable.label_experiment_config = build_experiment_definitions(is_reset)
+
+    success = success and init_experiment_structure( propertyTable )
+    if not success then logger.writeLog(0, "Failed to initialise experiment structure") end
+    success = success and set_dialog_properties_for_experiment( propertyTable )
+    if not success then logger.writeLog(0, "Failed to initialise dialog properties for experiments") end
+    if success then propertyTable.label_experiments_fully_defined = true end
     
     propertyTable:addObserver( 'label_position_search',  update_experiment_list)
     propertyTable:addObserver( 'label_num_rows_search',  update_experiment_list)
@@ -771,11 +816,12 @@ function exportDynamicLabellingView(f, propertyTable)
         menu_positions_list[i] = {title=list_value, value=list_value}
     end
     
-    --local list = { 1, 2, 3, 4 }
-    --local menu_num_rows_list = {}
-    --for i, list_value in pairs(list) do
-    --    menu_num_rows_list[i] = {title=list_value, value=list_value}
-    --end
+    local menu_experiment_limit_list = {
+        { title = "Low", value = 50 },
+        { title = "Medium", value = 100 },
+        { title = "High", value = 500 },
+        { title = "Very High", value = 1000 }
+    }
     
     result = f:column { -- labelling config
         f:row {
@@ -839,13 +885,6 @@ function exportDynamicLabellingView(f, propertyTable)
                         title = 'Label number of rows:',
                         enabled = LrBinding.andAllKeys( 'label_image', 'draw_label_text'),
                     },
-                    --f:popup_menu {
-                    --    items = menu_num_rows_list,
-                    --    value = bind 'default_num_rows',
-                    --    tooltip = "Number of text lines for label (or initial value if dynamic)",
-                    --    enabled = LrBinding.andAllKeys( 'label_image', 'draw_label_text'),
-                    --    place_horizontal = 0.1,
-                    --},
                     f:row {
                         f:edit_field {
                             width_in_digits = 1,
@@ -992,74 +1031,21 @@ function exportDynamicLabellingView(f, propertyTable)
                         title = 'Experiment loop limit:',
                         enabled = LrBinding.andAllKeys( 'label_image', 'label_auto_optimise'),
                     },
-                    f:static_text {
-                        title = '\t' .. tostring(propertyTable.experiment_loop_limit),
+                    --f:static_text {
+                    --    title = '\t' .. tostring(propertyTable.experiment_loop_limit),
+                    --    enabled = LrBinding.andAllKeys( 'label_image', 'label_auto_optimise'),
+                    --},
+                    f:popup_menu {
+                        items = menu_experiment_limit_list,
+                        value = bind 'experiment_loop_limit',
+                        tooltip = "Safety limit on the number of experiments to try for dynamic labelling",
                         enabled = LrBinding.andAllKeys( 'label_image', 'label_auto_optimise'),
+                        place_horizontal = 0.1,
                     },
                 }, -- group_box
             }, -- column
         }, -- row
         
-        f:row {
-            f:column {
-                f:group_box {
-                    title = LOC "$$$/FaceLabelling/ExportDialog/DynamicLabellingExperiments=Dynamic labelling experiments",
-                    f:static_text {
-                        title = 'Experiment list:',
-                    },
-                    f:static_text {
-                        title = LrView.bind { key = 'format_experiment_list',
-                            transform = function( value, fromTable )
-                                if fromTable then return list_to_text(propertyTable, value) end
-                                return LrBinding.kUnsupportedDirection -- to avoid updating the property table
-                            end,
-                        },
-                        place_horizontal = 0.1,
-                    },
-                }, -- group_box
-            }, -- column
-            f:column {
-                f:group_box {
-                    title = LOC "$$$/FaceLabelling/ExportDialog/ExperimentOptions=Experiment options",
-                    f:static_text {
-                        title = 'Positions:',
-                    },
-                    f:static_text {
-                        title = LrView.bind { key = 'positions_experiment_list',
-                            transform = function( value, fromTable )
-                                if fromTable then return list_to_text(propertyTable, value) end
-                                return LrBinding.kUnsupportedDirection -- to avoid updating the property table
-                            end,
-                        },
-                        place_horizontal = 0.1,
-                    },
-                    f:static_text {
-                        title = 'Num rows:',
-                    },
-                    f:static_text {
-                        title = LrView.bind { key = 'num_rows_experiment_list',
-                            transform = function( value, fromTable )
-                                if fromTable then return list_to_text(propertyTable, value) end
-                                return LrBinding.kUnsupportedDirection -- to avoid updating the property table
-                            end,
-                        },
-                        place_horizontal = 0.1,
-                    },
-                    f:static_text {
-                        title = 'Font size (multiples):',
-                    },
-                    f:static_text {
-                        title = LrView.bind { key = 'font_size_experiment_list',
-                            transform = function( value, fromTable )
-                                if fromTable then return list_to_text(propertyTable, value) end
-                                return LrBinding.kUnsupportedDirection -- to avoid updating the property table
-                            end,
-                        },
-                        place_horizontal = 0.1,
-                    },
-                }, -- group_box
-            }, -- column
-        }, -- row
     } -- column; labelling config
         
     return result
@@ -1419,6 +1405,77 @@ function exportStatusView(f, propertyTable)
 end
 
 --------------------------------------------------------------------------------
+-- dialog section for label experiment config summary
+
+function exportLabelExperimentSummaryView(f, propertyTable)
+    local bind = LrView.bind
+    local share = LrView.share
+    
+    result = f:row {
+        f:column {
+            f:group_box {
+                title = LOC "$$$/FaceLabelling/ExportDialog/DynamicLabellingExperiments=Dynamic labelling experiments",
+                f:static_text {
+                    title = 'Experiment list:',
+                },
+                f:static_text {
+                    title = LrView.bind { key = 'format_experiment_list',
+                        transform = function( value, fromTable )
+                            if fromTable then return list_to_text(propertyTable, value) end
+                            return LrBinding.kUnsupportedDirection -- to avoid updating the property table
+                        end,
+                    },
+                    place_horizontal = 0.1,
+                },
+            }, -- group_box
+        }, -- column
+        f:column {
+            f:group_box {
+                title = LOC "$$$/FaceLabelling/ExportDialog/ExperimentOptions=Experiment options",
+                f:static_text {
+                    title = 'Positions:',
+                },
+                f:static_text {
+                    title = LrView.bind { key = 'positions_experiment_list',
+                        transform = function( value, fromTable )
+                            if fromTable then return list_to_text(propertyTable, value) end
+                            return LrBinding.kUnsupportedDirection -- to avoid updating the property table
+                        end,
+                    },
+                    place_horizontal = 0.1,
+                },
+                f:static_text {
+                    title = 'Num rows:',
+                },
+                f:static_text {
+                    title = LrView.bind { key = 'num_rows_experiment_list',
+                        transform = function( value, fromTable )
+                            if fromTable then return list_to_text(propertyTable, value) end
+                            return LrBinding.kUnsupportedDirection -- to avoid updating the property table
+                        end,
+                    },
+                    place_horizontal = 0.1,
+                },
+                f:static_text {
+                    title = 'Font size (multiples):',
+                },
+                f:static_text {
+                    title = LrView.bind { key = 'font_size_experiment_list',
+                        transform = function( value, fromTable )
+                            if fromTable then return list_to_text(propertyTable, value) end
+                            return LrBinding.kUnsupportedDirection -- to avoid updating the property table
+                        end,
+                    },
+                    place_horizontal = 0.1,
+                },
+            }, -- group_box
+        }, -- column
+    } -- row
+        
+    return result
+end
+    
+--------------------------------------------------------------------------------
 -- sections for bottom of dialog
 
 function FLEExportDialogs.sectionsForBottomOfDialog( f, propertyTable )
@@ -1468,6 +1525,7 @@ function FLEExportDialogs.sectionsForBottomOfDialog( f, propertyTable )
             f:view {
                 fill_horizontal = 1,
                 exportStatusView(f, propertyTable),
+                exportLabelExperimentSummaryView(f, propertyTable),
             }, -- view
             
             f:push_button {

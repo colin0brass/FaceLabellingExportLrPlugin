@@ -1330,10 +1330,14 @@ function optimise_labels(labels_in_higher_level_experiments,
         end -- if not is_clash; else
         
         if experiment_loop_count < local_exportParams.experiment_loop_limit then
-            logger.writeLog(3, "- optimise_labels: experiment_loop_count:" .. experiment_loop_count)
+            if math.floor((experiment_loop_count + 1)/100) ~= math.floor(experiment_loop_count/100) then
+                logger.writeLog(1, "optimise_labels is taking a while; experiment_loop_count reached: " .. experiment_loop_count+1 .. " ; limit is: " .. local_exportParams.experiment_loop_limit)
+            else
+                logger.writeLog(3, "- optimise_labels: experiment_loop_count:" .. experiment_loop_count+1)
+            end
             experiment_loop_count = experiment_loop_count + 1
         else
-            logger.writeLog(3, "- optimise_labels: reached loop count limit, so exiting optimisation")
+            logger.writeLog(3, "- optimise_labels: reached loop count limit, so exiting optimisation with best config found")
             is_finished = true
         end
     end -- while not is_finished
