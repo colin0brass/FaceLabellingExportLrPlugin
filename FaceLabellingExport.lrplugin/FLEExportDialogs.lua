@@ -55,8 +55,6 @@ local versionString = (Info.VERSION.major or '0') .. '.' .. (Info.VERSION.minor 
 
 FLEExportDialogs = {}
 
-exiftool_url = "https://exiftool.org"
-imagemagick_url = "https://imagemagick.org"
 
 --============================================================================--
 -- Functions
@@ -93,9 +91,9 @@ local function updateExportStatus( propertyTable )
     
     repeat -- only goes through once, but using this as easy way to 'break' out
 
-        if not file_present(propertyTable.exifToolApp) or
-                not file_present(propertyTable.imageMagickApp) or
-                not file_present(propertyTable.imageConvertApp) then
+        if not utils.file_present(propertyTable.exifToolApp) or
+                not utils.file_present(propertyTable.imageMagickApp) or
+                not utils.file_present(propertyTable.imageConvertApp) then
             message = "Helper apps not fully configured. Please check in Plug-in Manager."
             break
         end
@@ -155,7 +153,7 @@ end
 --------------------------------------------------------------------------------
 -- Observer function to round slider value to specified number of decimal places
 local function roundOneDecimalPlace(properties, key, value)
-    properties[key] = round(properties[key], 1)
+    properties[key] = utils.round(properties[key], 1)
 end
 
 --------------------------------------------------------------------------------
@@ -245,7 +243,7 @@ end
 
 function set_dialog_properties_for_experiment( propertyTable, experiment_definitions, reset )
     logger.writeLog(5, "set_dialog_properties_for_experiment:")
-    reset = ifnil(reset, false)
+    reset = utils.ifnil(reset, false)
 
     for exp_key, exp in pairs(experiment_definitions.experiments) do
         if reset then exp.is_enabled = exp.default_enable end

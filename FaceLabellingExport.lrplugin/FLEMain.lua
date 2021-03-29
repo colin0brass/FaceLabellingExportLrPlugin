@@ -314,7 +314,7 @@ function FLEMain.export_labeled_image(people, photoDimension, photoPath)
                                                local_exportParams.font_colour,
                                                local_exportParams.label_undercolour)
                 FLEImageMagickAPI.add_command_string(labelling_context.imageMagickHandle, command_string)
-                text = text_line_wrap(label.text, label.num_rows)
+                text = utils.text_line_wrap(label.text, label.num_rows)
                 gravity = translate_align_to_gravity(label.text_align)
                 command_string = string.format('-background none -size %dx -gravity %s caption:"%s"',
                                                label.w, gravity, text)
@@ -368,7 +368,7 @@ end
 -- Get people from exif label information
 
 function get_person(photoDimension, region)
-    local name = ifnil(region.name, 'Unknown')
+    local name = utils.ifnil(region.name, 'Unknown')
     
     x = region.x
     y = region.y
@@ -379,7 +379,7 @@ function get_person(photoDimension, region)
         name, x, y, w, h))
     
     if local_exportParams.obfuscate_labels then
-        name = randomise_string(name)
+        name = utils.randomise_string(name)
     end
     
     person = {}
@@ -411,10 +411,10 @@ end
 function keep_within_image(x, y, w, h)
     photoDimension = labelling_context.photo_dimensions
     
-    local X = ifnil(photoDimension.CropX, 0)
-    local Y = ifnil(photoDimension.CropY, 0)
-    local W = ifnil(photoDimension.CropW, photoDimension.width)
-    local H = ifnil(photoDimension.CropH, photoDimension.height)
+    local X = utils.ifnil(photoDimension.CropX, 0)
+    local Y = utils.ifnil(photoDimension.CropY, 0)
+    local W = utils.ifnil(photoDimension.CropW, photoDimension.width)
+    local H = utils.ifnil(photoDimension.CropH, photoDimension.height)
     local margin = local_exportParams.image_margin
     
     if x < X + margin then -- ensure not negative
@@ -441,7 +441,7 @@ function get_label_position_and_size(label)
     local success = true
     
     person = label.person
-    text = text_line_wrap(label.text, label.num_rows)
+    text = utils.text_line_wrap(label.text, label.num_rows)
     
     if label.w ~= nil then -- check if label size already known, to save time
         label_w = label.w
@@ -582,7 +582,7 @@ function determine_label_font_size()
         local people = labelling_context.people
         local photoDimension = labelling_context.photo_dimensions
         
-        local image_width = ifnil(photoDimension.CropW, photoDimension.width)
+        local image_width = utils.ifnil(photoDimension.CropW, photoDimension.width)
 
         average_region_size = get_average_region_size(people)
         font_size = label_config.font_size
@@ -764,10 +764,10 @@ end
 -- Optimise single label position to try to avoid clashes
 
 function optimise_single_label(label, experiment_list)
-    local local_experiment_list = table_copy(experiment_list)
+    local local_experiment_list = utils.table_copy(experiment_list)
     local clash = true -- initial value
     local photoDimension = labelling_context.photo_dimensions
-    local image_width = ifnil(photoDimension.CropW, photoDimension.width)
+    local image_width = utils.ifnil(photoDimension.CropW, photoDimension.width)
     local label_clash_area = 0 -- initial value
     
     if local_experiment_list and #local_experiment_list>0 then
@@ -1055,7 +1055,7 @@ function build_experiment_list(labels_in_this_experiment)
 end
 
 function find_next_label_in_experiment(experiment_list, current_label)
-    local label_num = ifnil(current_label, 1) -- initial value
+    local label_num = utils.ifnil(current_label, 1) -- initial value
     local is_found = false -- initial value
     local num_labels = #experiment_list.per_label
     while not is_found and label_num<=num_labels do
@@ -1091,7 +1091,7 @@ end
 function apply_label_experiments(experiment_list)
     logger.writeLog(5, "apply_label_experiments")
     local photoDimension = labelling_context.photo_dimensions
-    local image_width = ifnil(photoDimension.CropW, photoDimension.width)
+    local image_width = utils.ifnil(photoDimension.CropW, photoDimension.width)
     for i, per_label_experiments in pairs(experiment_list.per_label) do
         if per_label_experiments.is_included then
             try_position, try_num_rows = get_per_label_experiment_values(per_label_experiments.experiment)
@@ -1219,7 +1219,7 @@ function test_label_positions()
     local label_clash = false -- initial value
     local clashing_labels_lookup = {} -- initial value
     local photoDimension = labelling_context.photo_dimensions
-    local image_width = ifnil(photoDimension.CropW, photoDimension.width)
+    local image_width = utils.ifnil(photoDimension.CropW, photoDimension.width)
     local label_clash_area = 0 -- initial value
     local total_clash_area = 0 -- initial value
     
@@ -1258,7 +1258,7 @@ function optimise_labels(labels_in_higher_level_experiments,
     
     local best_config = nil -- initial value
 
-    experiment_loop_count = ifnil(experiment_loop_count, 1)
+    experiment_loop_count = utils.ifnil(experiment_loop_count, 1)
     
     logger.writeLog(3, "- optimise_labels: starting")
     while not is_finished do
@@ -1303,8 +1303,8 @@ function optimise_labels(labels_in_higher_level_experiments,
         
             if len_boolean_list(delta_clash_list)>0 then
                 logger.writeLog(4, "- optimise_labels: recurse into optimise_labels to try experiments on newly discovered delta_clash_list")
-                local local_labels_in_this_experiment = table_copy(labels_in_this_experiment)
-                local local_delta_clash_list = table_copy(delta_clash_list)
+                local local_labels_in_this_experiment = utils.table_copy(labels_in_this_experiment)
+                local local_delta_clash_list = utils.table_copy(delta_clash_list)
                 is_clash, recommended_config, experiment_loop_count = optimise_labels(local_labels_in_this_experiment,
                     local_delta_clash_list, best_config, minimum_overlap, experiment_loop_count)
                 --is_clash, recommended_config, experiment_loop_count = optimise_labels(labels_in_this_experiment,

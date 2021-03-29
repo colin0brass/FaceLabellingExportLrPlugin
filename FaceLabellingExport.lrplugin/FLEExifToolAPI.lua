@@ -124,11 +124,11 @@ function _extract_face_regions(results)
         photoSize.width   = regionsInfo.ImageInfo.ImageWidth
         photoSize.height  = regionsInfo.ImageInfo.ImageHeight
         photoSize.orient  = regionsInfo.ImageInfo.Orientation
-        photoSize.CropX   = ifnil(regionsInfo.ImageInfo.CropX, 0)
-        photoSize.CropY   = ifnil(regionsInfo.ImageInfo.CropY, 0)
-        photoSize.CropW   = ifnil(regionsInfo.ImageInfo.CropW, photoSize.width)
-        photoSize.CropH   = ifnil(regionsInfo.ImageInfo.CropH, photoSize.height)
-        photoSize.HasCrop = ifnil(regionsInfo.ImageInfo.HasCrop, false)
+        photoSize.CropX   = utils.ifnil(regionsInfo.ImageInfo.CropX, 0)
+        photoSize.CropY   = utils.ifnil(regionsInfo.ImageInfo.CropY, 0)
+        photoSize.CropW   = utils.ifnil(regionsInfo.ImageInfo.CropW, photoSize.width)
+        photoSize.CropH   = utils.ifnil(regionsInfo.ImageInfo.CropH, photoSize.height)
+        photoSize.HasCrop = utils.ifnil(regionsInfo.ImageInfo.HasCrop, false)
         
         if regionsInfo.RegionList and #regionsInfo.RegionList > 0 then 
             local regionList = regionsInfo.RegionList
@@ -145,7 +145,7 @@ function _extract_face_regions(results)
                     personTag.y 	    = tonumber(region.Area.Y)
                     personTag.w 		= tonumber(region.Area.W)
                     personTag.h 		= tonumber(region.Area.H)
-                    personTag.name 		= tostring(ifnil(region.Name,''))
+                    personTag.name 		= tostring(utils.ifnil(region.Name,''))
     
                     personTags[face_num] = personTag 
                     
@@ -209,7 +209,7 @@ function _openExifTool(exportParams)
 
                 logger.writeLog(3, string.format("exiftool starting: %s", command))
                 -- on Windows, whole command line needs to be wrapped in an additional set of quotes
-                local exitStatus = LrTasks.execute(command_line_quote(command))
+                local exitStatus = LrTasks.execute(utils.command_line_quote(command))
                 if exitStatus > 0 then
                     logger.writeLog(0, string.format("exiftool error: %s", tostring(exitStatus)))
                     success = false

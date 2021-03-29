@@ -39,8 +39,8 @@ local LrPathUtils        = import("LrPathUtils")
 local LrPrefs            = import("LrPrefs")
 
 --============================================================================--
--- Local imports
-require "Utils.lua"
+-- Imports
+utils = require "Utils.lua"
 
 -- Log export session to file for diagnostics & debug
 logger = require("Logger.lua")
@@ -52,10 +52,14 @@ logger = require("Logger.lua")
 -- from Lightroom Plug-in Manager, before export
 local prefs = LrPrefs.prefsForPlugin()
 
-
 --============================================================================--
 -- Preferences for Plug-in Manager dialog
 --------------------------------------------------------------------------------
+
+plugin_url = "https://github.com/colin0brass/FaceLabellingExportLrPlugin"
+exiftool_url = "https://exiftool.org"
+imagemagick_url = "https://imagemagick.org"
+
 if MAC_ENV then
     default_exiftool_app      = LrPathUtils.child(_PLUGIN.path, 'Mac/ExifTool/exiftool')
     default_imagemagick_app   = "/usr/local/bin/magick"
@@ -72,7 +76,7 @@ end
 local temp_dir_path = LrPathUtils.getStandardFilePath("temp")
 manager_table = {
     -- Plug-in details
-    { key = 'FLEUrl',               default = "https://github.com/colin0brass/FaceLabellingExportLrPlugin", fixed = true },
+    { key = 'FLEUrl',               default = plugin_url, fixed = true },
     
     -- Helper apps
     { key = 'exifToolApp',          default = default_exiftool_app },
@@ -214,7 +218,7 @@ function is_value_in_list(list, value)
 end
 
 function build_experiment_definitions(reset)
-    reset = ifnil(reset, false)
+    reset = utils.ifnil(reset, false)
     
     logger.writeLog(5, "build_experiment_definitions: reset=" .. tostring(reset))
     
@@ -268,7 +272,7 @@ end
 
 function prefs_init(prefs, prefs_definition, reset)
     logger.writeLog(5, "prefs_init:")
-    reset = ifnil(reset, false)
+    reset = utils.ifnil(reset, false)
     for i, list_value in pairs(prefs_definition) do
         if ( list_value.fixed or (reset and (list_value.default~=nil)) ) then
             logger.writeLog(4, list_value.key .. ' reset to ' .. tostring(list_value.default))
@@ -287,18 +291,18 @@ end
 
 
 function property_table_init_from_prefs(propertyTable, prefs_definition, prefs, reset)
-    reset = ifnil(reset, false)
+    reset = utils.ifnil(reset, false)
     logger.writeLog(5, "property_table_init_from_prefs: starting; reset=" .. tostring(reset))
     for i, list_value in pairs(prefs_definition) do
         if reset then
             if (list_value.default~=nil) then
-                propertyTable[list_value.key] = table_copy(list_value.default)
+                propertyTable[list_value.key] = utils.table_copy(list_value.default)
                 --prefs[list_value.key] = list_value.default -- for some reason this stops the function working
                 logger.writeLog(4, tostring(list_value.key) .. ' reset to ' .. tostring(list_value.default))
             end
         elseif prefs[list_value.key]~=nil then
             logger.writeLog(4, tostring(list_value.key) .. ' set to ' .. tostring(prefs[list_value.key]))
-            propertyTable[list_value.key] = table_copy(prefs[list_value.key])
+            propertyTable[list_value.key] = utils.table_copy(prefs[list_value.key])
         else
             logger.writeLog(5, 'nothing to copy for: ' .. tostring(list_value.key))
         end

@@ -135,7 +135,7 @@ function FLEImageMagickAPI.execute_commands(handle)
                         " -script " .. '"' .. handle.commandFile .. '"'
         logger.writeLog(4, "ImageMagick execute command: " .. command)
         -- on Windows, whole command line needs to be wrapped in an additional set of quotes
-        local exitStatus = LrTasks.execute(command_line_quote(command))
+        local exitStatus = LrTasks.execute(utils.command_line_quote(command))
         if exitStatus > 0 then
             logger.writeLog(0, string.format("ImageMagick error: %s", tostring(exitStatus)))
             success = false
@@ -167,7 +167,7 @@ function FLEImageMagickAPI.execute_convert_get_output(handle, command_string)
         logger.writeLog(5, "ImageMagick execute command: " .. command)
 
         -- safeExecute function handles wrapping the whole command line in additional set of quotes for Windows platforms 
-        exitStatus, output, errOutput = safeExecute(command, true)
+        exitStatus, output, errOutput = utils.safeExecute(command, true)
         if exitStatus then
             logger.writeLog(5, "ImageMagick output: " .. output)
         else

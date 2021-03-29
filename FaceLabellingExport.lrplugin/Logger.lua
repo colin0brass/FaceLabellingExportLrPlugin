@@ -98,7 +98,7 @@ end
 
 function logger.writeLog(level, message)
 	if level <= log_level_threshold then
-        message = ifnil(message, '')
+        message = utils.ifnil(message, '')
 	    if type(message) ~= 'string' then -- == 'boolean' then
 	        message = tostring(message)
 	    end

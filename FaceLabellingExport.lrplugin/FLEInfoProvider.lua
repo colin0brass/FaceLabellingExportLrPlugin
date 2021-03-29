@@ -73,21 +73,21 @@ local function updatePluginStatus( propertyTable )
     
     repeat -- only goes through once, but using this as easy way to 'break' out
 
-        if not file_present(propertyTable.exifToolApp) then
+        if not utils.file_present(propertyTable.exifToolApp) then
             message = "Failed to find ExifTool app"
             propertyTable.exifToolAppFoundStatus = "Not-Found"
         else
             propertyTable.exifToolAppFoundStatus = "Found"
         end
         
-        if not file_present(propertyTable.imageMagickApp) then
+        if not utils.file_present(propertyTable.imageMagickApp) then
             message = "Failed to find ImageMagick main app"
             propertyTable.imageMagickAppFoundStatus = "Not-Found"
         else
             propertyTable.imageMagickAppFoundStatus = "Found"
         end
         
-        if not file_present(propertyTable.imageConvertApp) then
+        if not utils.file_present(propertyTable.imageConvertApp) then
             message = "Failed to find ImageMagick convert app"
             propertyTable.imageConvertAppFoundStatus = "Not-Found"
         else

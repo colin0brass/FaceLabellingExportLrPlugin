@@ -48,13 +48,15 @@ local LrFunctionContext = import("LrFunctionContext")
 -- Local variables
 local tmpdir = LrPathUtils.getStandardFilePath("temp")
 
+local utils = {}
+
 --============================================================================--
 -- Functions
 
 --------------------------------------------------------------------------------
 -- Check if file is present
 
-function file_present( file )
+function utils.file_present( file )
     local file_present = true
     
     if not file then
@@ -70,7 +72,7 @@ end
 -- Split text nicely over specified number of lines
 
 -- adapted from: https://stackoverflow.com/questions/5059956/algorithm-to-divide-text-into-3-evenly-sized-groups
-function text_line_wrap(text, num_lines)
+function utils.text_line_wrap(text, num_lines)
     words = {}
     for word in text:gmatch("%w+") do table.insert(words, word) end
     num_words = #words
@@ -132,7 +134,7 @@ function text_line_wrap(text, num_lines)
         b = a
     end
     
-    lines = list_reverse(lines_reverse_order)
+    lines = utils.list_reverse(lines_reverse_order)
     lines_string = table.concat(lines, "\n")
     
     return lines_string
@@ -141,7 +143,7 @@ end
 --------------------------------------------------------------------------------
 -- String randomisation, e.g. for photo label obfuscation
 
-function randomise_string(s)
+function utils.randomise_string(s)
     math.randomseed(os.time())
     char_list = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ'
     digit_list = '0123456789'
@@ -168,7 +170,10 @@ function randomise_string(s)
     return rand_s
 end
 
-function list_reverse(list)
+--------------------------------------------------------------------------------
+-- Reverse the order of a list
+
+function utils.list_reverse(list)
     reversed = {}
     if list and #list > 0 then
         for i = 1, #list do
@@ -182,26 +187,26 @@ end
 -- Table copying
 
 -- https://stackoverflow.com/questions/640642/how-do-you-copy-a-lua-table-by-value
-function table_copy(obj, seen)
+function utils.table_copy(obj, seen)
     if type(obj) ~= 'table' then return obj end
     if seen and seen[obj] then return seen[obj] end
     local s = seen or {}
     local res = setmetatable({}, getmetatable(obj))
     s[obj] = res
-    for k, v in pairs(obj) do res[table_copy(k, s)] = table_copy(v, s) end
+    for k, v in pairs(obj) do res[utils.table_copy(k, s)] = utils.table_copy(v, s) end
     return res
 end
 
 --------------------------------------------------------------------------------
 -- Condition handling helpers
 
-function ifnil(str, alternate)
+function utils.ifnil(str, alternate)
     result = str -- initial value
     if str == nil then result = alternate end
 	return result
 end 
 
-function iif(condition, then_expr, else_expr)
+function utils.iif(condition, then_expr, else_expr)
     result = nil -- initial value
 	if condition then result = then_expr else result = else_expr end
 	return result
@@ -212,7 +217,7 @@ end
 
 -- on Windows, whole command line needs to be wrapped in an additional set of quotes
 -- to handle case where exe or other arguments are also quoted (e.g. to handle spaces in paths)
-function command_line_quote(command_line)
+function utils.command_line_quote(command_line)
     if WIN_ENV == true then
         command_line = '"' .. command_line .. '"'
     else -- Mac
@@ -220,26 +225,6 @@ function command_line_quote(command_line)
     end
     
     return command_line
-end
-
-function path_quote_selection_for_platform(path)
-    if WIN_ENV == true then
-        path = path -- no change
-    else -- Mac
-        path = '"' .. path .. '"'
-    end
-    
-    return path
-end
-
-function app_exe_quote_selection_for_platform(path)
-    if WIN_ENV == true then
-        path = '"' .. path .. '"'
-    else -- Mac
-        path = path -- no change
-    end
-    
-    return path
 end
 
 --------------------------------------------------------------------------------
@@ -264,7 +249,7 @@ occur in safeExecute itself, "exitCode" will be -1, and "output" and
 getOuptut == "separate": "", <error message>
 otherwise:              <error message>, ""
 ------------------------------------------------------------------------------]]
-function safeExecute (commandLine, getOutput)
+function utils.safeExecute (commandLine, getOutput)
 return LrFunctionContext.callWithContext ("", function (context)
     local outFile, errFile
     context:addCleanupHandler (function ()
@@ -316,7 +301,12 @@ return LrFunctionContext.callWithContext ("", function (context)
 -- Number rounding to decimal places
 -- http://lua-users.org/wiki/SimpleRound
 
-function round(num, numDecimalPlaces)
+function utils.round(num, numDecimalPlaces)
     local mult = 10^(numDecimalPlaces or 0)
     return math.floor(num * mult + 0.5) / mult
 end
+
+--------------------------------------------------------------------------------
+-- return table
+
+return utils
