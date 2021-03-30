@@ -38,7 +38,6 @@ Inspiration gleaned from:
 local LrDate            = import("LrDate")
 local LrFileUtils       = import("LrFileUtils")
 local LrPathUtils       = import("LrPathUtils")
-local LrTasks           = import("LrTasks")
 
 --============================================================================--
 -- Local imports

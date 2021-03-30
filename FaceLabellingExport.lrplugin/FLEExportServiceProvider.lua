@@ -39,7 +39,6 @@ local LrDialogs         = import("LrDialogs")
 local LrFileUtils       = import("LrFileUtils")
 local LrPathUtils       = import("LrPathUtils")
 local LrPrefs           = import("LrPrefs")
-local LrTasks           = import("LrTasks")
 
 --============================================================================--
 -- Local imports

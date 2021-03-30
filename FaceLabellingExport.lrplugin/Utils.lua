@@ -184,6 +184,26 @@ function utils.list_reverse(list)
 end
 
 --------------------------------------------------------------------------------
+-- List to comma-separated text string
+
+function utils.list_to_text(list)
+    local string = '' -- initial value
+    if list == nil then
+        string = 'nil'
+    else -- if list
+        if type(list)=='table' then
+            for i, entry in pairs(list) do
+                if i ~= 1 then string = string .. ', ' end
+                string = string .. tostring(entry)
+            end -- for i, entry
+        else -- if type
+            string = tostring(list) -- handle non-list cases for completeness
+        end -- if type; else
+    end -- if list; else
+    return string
+end
+
+--------------------------------------------------------------------------------
 -- Table copying
 
 -- https://stackoverflow.com/questions/640642/how-do-you-copy-a-lua-table-by-value

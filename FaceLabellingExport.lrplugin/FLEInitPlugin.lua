@@ -145,6 +145,7 @@ preference_table = {
 	{ key = 'positions_experiment_list', default = nil },
 	{ key = 'num_rows_experiment_list', default = nil },
 	{ key = 'font_size_experiment_list', default = nil },
+	{ key = 'experiment_order', default = 'Pos/Rows/Font' },
 	{ key = 'experiment_loop_limit', default = 200, fixed = false},
 	
     -- Export thumbnails preferences
@@ -159,6 +160,14 @@ experiment_definitions = {
         list_value = {}, -- initial value
         prefs_var = 'format_experiment_list',
         dialog_var = nil, -- initial value
+        order_lookup = {
+            { key = "Pos/Rows/Font", list_value = {'position',  'num_rows',  'font_size'} },
+            { key = "Pos/Font/Rows", list_value = {'position',  'font_size', 'num_rows' } },
+            { key = "Rows/Pos/Font", list_value = {'num_rows',  'position',  'font_size'} },
+            { key = "Rows/Font/Pos", list_value = {'num_rows',  'font_size', 'position' } },
+            { key = "Font/Rows/Pos", list_value = {'font_size', 'num_rows',  'position' } },
+            { key = "Font/Pos/Rows", list_value = {'font_size', 'position',  'num_rows' } },
+        },
     },
     experiments = {
         {
@@ -298,19 +307,17 @@ function property_table_init_from_prefs(propertyTable, prefs_definition, prefs, 
     reset = utils.ifnil(reset, false)
     logger.writeLog(5, "property_table_init_from_prefs: starting; reset=" .. tostring(reset))
     for i, list_value in pairs(prefs_definition) do
-        if reset then
+        if reset or (prefs[list_value.key]==nil) then
             if (list_value.default~=nil) then
                 propertyTable[list_value.key] = utils.table_copy(list_value.default)
                 --prefs[list_value.key] = list_value.default -- for some reason this stops the function working
                 logger.writeLog(4, tostring(list_value.key) .. ' reset to ' .. tostring(list_value.default))
             end
-        elseif prefs[list_value.key]~=nil then
+        else -- if reset
             logger.writeLog(4, tostring(list_value.key) .. ' set to ' .. tostring(prefs[list_value.key]))
             propertyTable[list_value.key] = utils.table_copy(prefs[list_value.key])
-        else
-            logger.writeLog(5, 'nothing to copy for: ' .. tostring(list_value.key))
-        end
-    end
+        end -- if reset; else
+    end -- for i, list_value
 end
 
 prefs_init(prefs, manager_table)
