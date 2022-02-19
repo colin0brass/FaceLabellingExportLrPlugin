@@ -77,6 +77,7 @@ function logger.init(filename, set_log_level_threshold)
             io.close(file)
         end -- if file
     end -- if LrFileUtils.exists(logger.logFilePath)
+    logger.writeLog(0, 'logger.init:' .. logger.logFilePath)
 end
 
 --------------------------------------------------------------------------------
@@ -97,13 +98,15 @@ end
 -- write message to log file
 
 function logger.writeLog(level, message)
-	if level <= log_level_threshold then
-        message = utils.ifnil(message, '')
-	    if type(message) ~= 'string' then -- == 'boolean' then
-	        message = tostring(message)
-	    end
-		myLogger:trace(level .. " : " .. message)
-	end
+    if log_level_threshold then -- handle case where logger is used during FLEInitPlugin, before logger init 
+        if level <= log_level_threshold then
+            message = utils.ifnil(message, '')
+            if type(message) ~= 'string' then -- == 'boolean' then
+                message = tostring(message)
+            end
+            myLogger:trace(level .. " : " .. message)
+        end
+    end
 end
 
 --------------------------------------------------------------------------------

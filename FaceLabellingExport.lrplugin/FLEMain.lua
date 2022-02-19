@@ -351,13 +351,19 @@ end
 -- Initialisation
 
 function init()
+    logger.writeLog(4, "FLEMain.init")
+
     labelling_context.people = nil
     labelling_context.labels = nil
     labelling_context.photo_dimensions = nil
     
     label_config.font_size = local_exportParams.label_font_size_fixed
     label_config.format_experiment_list = local_exportParams.format_experiment_list
-    label_config.num_experiments = #label_config.format_experiment_list
+    if label_config.format_experiment_list then -- handle null list
+        label_config.num_experiments = #label_config.format_experiment_list
+    else
+        label_config.num_experiments = 0
+    end
     label_config.positions_experiment_list = local_exportParams.positions_experiment_list
     label_config.num_rows_experiment_list = local_exportParams.num_rows_experiment_list
     label_config.font_size_experiment_list = local_exportParams.font_size_experiment_list
@@ -1015,7 +1021,7 @@ function build_experiment_list(labels_in_this_experiment)
     experiment_list.global = {} -- initial value
     experiment_list.global.experiment = {} -- initial value
 
-    if #label_config.format_experiment_list==0 then -- only build experiment if there are some experiments enabled
+    if label_config.num_experiments==0 then -- only build experiment if there are some experiments enabled
         logger.writeLog(5, "build_experiment_list: no experiment list found")
     else
         logger.writeLog(5, "build_experiment_list: experiment list found")

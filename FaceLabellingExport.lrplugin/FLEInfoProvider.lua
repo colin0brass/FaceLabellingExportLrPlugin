@@ -61,6 +61,29 @@ function resetPluginManagerPresetFields( propertyTable )
     end
 end
 
+function clearPluginPrefs()
+    local prefs = LrPrefs.prefsForPlugin()
+    logger.writeLog(0, "clearPluginPrefs:")
+    logger.writeLog(4, "prefs:")
+    logger.writeTable(4, prefs)
+    logger.writeLog(4, "clearing prefs pairs:")
+    for key, value in prefs:pairs() do
+        logger.writeLog(5, tostring(key) .. ' clearing to nil')
+        prefs[key] = nil
+    end -- for i, list_value
+    logger.writeLog(4, "prefs:")
+    logger.writeTable(4, prefs)
+    logger.writeLog(4, "clearPluginPrefs - end")
+end
+
+function logPluginPrefs()
+    local prefs = LrPrefs.prefsForPlugin()
+    logger.writeLog(0, "logPluginPrefs:")
+    logger.writeLog(0, "prefs:")
+    logger.writeTable(0, prefs)
+end
+
+
 --------------------------------------------------------------------------------
 -- Update export status
 
@@ -426,12 +449,28 @@ function logFilesView(f, propertyTable)
             }, -- checkbox
         }, -- row
  
-        f:push_button {
-            title = 'Reset to default settings',
-            action = function()
-                resetPluginManagerPresetFields(propertyTable)
-            end,
-        }, -- push_button
+        f: row { -- plug-in reset options
+            f:push_button {
+                title = 'Reset to default settings',
+                action = function()
+                    resetPluginManagerPresetFields(propertyTable)
+                end,
+            }, -- push_button
+            
+            f: push_button {
+                title = 'Clear plug-in prefs values to nil',
+                action = function()
+                    clearPluginPrefs()
+                end,
+            }, -- push_button
+            
+            f: push_button {
+                title = 'Write plug-in prefs to log file',
+                action = function()
+                    logPluginPrefs()
+                end,
+            }, -- push_button
+        }, -- row
 
     } -- result, group_box
     

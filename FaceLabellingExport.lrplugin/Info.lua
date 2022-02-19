@@ -50,6 +50,6 @@ return {
 		file = 'FLEExportServiceProvider.lua',
 	},
 	
-	VERSION = { major=1, minor=8, revision=0, build=0, },
+	VERSION = { major=1, minor=9, revision=0, build=0, },
 
 }
