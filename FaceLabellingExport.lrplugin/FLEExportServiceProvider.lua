@@ -129,6 +129,7 @@ end
 
 function updateExportSettings ( exportSettings )
     exportSettings.LR_removeFaceMetadata = false -- ensure face meta-data included in file export
+    exportSettings.LR_removeLocationMetadata = false -- include location data in export
 end
 
 --------------------------------------------------------------------------------
@@ -137,6 +138,8 @@ end
 return {
     hideSections = { -- 'fileNaming', 'imageSettings',  'fileSettings', 
         'metadata', 'outputSharpening', 'video', 'watermarking' },
+    -- chose to hide metadata section since it could cause problems with users disabling metadata export and breaking plugin
+    -- see specific override in 'updateExportSettings' function above to enable location meta-data export
         
     --allowFileFormats = nil, -- nil equates to all available formats
     --allowColorSpaces = nil, -- nil equates to all color spaces
