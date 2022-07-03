@@ -92,9 +92,9 @@ function FLEMain.start(exportParams)
         labelling_context.exifToolHandle = handle
         labelling_context.status_ok = true
     end
-    
+
     labelling_context.imageMagickHandle = FLEImageMagickAPI.init(exportParams)
-    
+
     local_exportParams = exportParams
 end
 
@@ -104,7 +104,7 @@ end
 function FLEMain.stop()
     logger.writeLog(4, "FLEMain.stop")
     FLEExifToolAPI.closeSession(labelling_context.exifToolHandle)
-    
+
     success = FLEImageMagickAPI.cleanup(labelling_context.imageMagickHandle)
 end
 
@@ -117,27 +117,27 @@ function FLEMain.renderPhoto(srcPath, renderedPath)
     local photoDimensions = {}
     local people = {}
     local labels = {}
-    
+
     if labelling_context.status_ok then
-    
+
         -- initialise context for new photo
         init()
-        
+
         -- create summary of people from regions
         face_regions, photoDimension = getRegions(renderedPath)
-    
+
         logger.writeTable(4, face_regions) -- write to log for debug
         people = get_people(photoDimension, face_regions)
-    
+
         -- save cropped thumbnails first, before exported image is modified by the labelling
         if local_exportParams.export_thumbnails then
             FLEMain.export_thumbnail_images(people, photoDimension, renderedPath)
         end
         -- label the exported image (after saving cropped thumbnails)
         FLEMain.export_labeled_image(people, photoDimension, renderedPath)
-        
+
     end -- if labelling_context.status_ok
-    
+
     return success, failures
 end
 
@@ -150,10 +150,10 @@ function FLEMain.export_thumbnail_images(people, photoDimension, photoPath)
     logger.writeLog(3, "Create ImageMagick script command file for image labelling")
 
     for i, person in pairs(people) do
-    
+
         local person_is_named = string.len(person.name) > 0
         if person_is_named or local_exportParams.export_thumbnails_if_unnamed then
-        
+
             -- input file
             exported_file = '"' .. photoPath .. '"'
             command_string = '# Input file'
@@ -161,14 +161,14 @@ function FLEMain.export_thumbnail_images(people, photoDimension, photoPath)
             FLEImageMagickAPI.add_command_string(labelling_context.imageMagickHandle, command_string)
             command_string = exported_file
             FLEImageMagickAPI.add_command_string(labelling_context.imageMagickHandle, command_string)
-        
+
             -- crop thumbnail
             command_string = '# Person thumbnail images'
             FLEImageMagickAPI.add_command_string(labelling_context.imageMagickHandle, command_string)
             command_string = string.format('-crop %dx%d+%d+%d',
                     person['w'], person['h'], person['x'], person['y'])
             FLEImageMagickAPI.add_command_string(labelling_context.imageMagickHandle, command_string)
-    
+
             -- derive output path and create directory if not already existing
             local exported_path = LrPathUtils.parent(photoPath)
             if local_exportParams.thumbnails_folder_option == 'ThumbnailsThumbFolder' then
@@ -179,7 +179,7 @@ function FLEMain.export_thumbnail_images(people, photoDimension, photoPath)
             else -- not 'thumb' folder
                 outputPath = exported_path
             end
-            
+
             -- derive output file name
             local filename = LrPathUtils.leafName(photoPath)
             local filename_no_extension = LrPathUtils.removeExtension(filename)
@@ -196,20 +196,20 @@ function FLEMain.export_thumbnail_images(people, photoDimension, photoPath)
                 end
             end
             filename = LrPathUtils.addExtension(filename_no_extension, file_extension)
-            
+
             -- combine path and filename, and ensure unique
             local output_file_with_path = LrPathUtils.child(outputPath, filename)
             output_file_with_path = LrFileUtils.chooseUniqueFileName(output_file_with_path)
-            
+
             -- output file
             command_string = "-write " .. '"' .. output_file_with_path .. '"'
             FLEImageMagickAPI.add_command_string(labelling_context.imageMagickHandle, command_string)
-        
+
             -- execute ImageMagick commands
             FLEImageMagickAPI.execute_commands(labelling_context.imageMagickHandle)
-            
+
         end -- if person_is_named or local_exportParams.export_thumbnails_if_unnamed
-        
+
     end -- for i, person in pairs(people)
 end
 
@@ -219,18 +219,18 @@ end
 function FLEMain.export_labeled_image(people, photoDimension, photoPath)
 
     logger.writeLog(2, "Export labeled image")
-    
+
     labelling_context.people = people
     labelling_context.photo_dimensions = photoDimension
-    
+
     label_config.font_size = determine_label_font_size()
     logger.writeLog(3, "Chosen font size: " .. label_config.font_size)
-                                                                                         
+
     -- create labels
     logger.writeLog(3, "Create labels")
     labels = get_labels()
     labelling_context.labels = labels
-    
+
     -- check and optimise positions
     if not local_exportParams.label_auto_optimise then
         logger.writeLog(3, "Label positions set to fixed")
@@ -249,7 +249,7 @@ function FLEMain.export_labeled_image(people, photoDimension, photoPath)
             labelling_context.labels, label_config.font_size = copy_config_to_labels(recommended_config)
         end
     end
-    
+
     logger.writeLog(3, "Create ImageMagick script command file for image labelling")
 
     -- input file
@@ -268,7 +268,7 @@ function FLEMain.export_labeled_image(people, photoDimension, photoPath)
 
     -- label image
     if local_exportParams.label_image then
-        
+
         -- person face outlines
         if local_exportParams.draw_face_outlines then
             command_string = '# Person face outlines'
@@ -283,7 +283,7 @@ function FLEMain.export_labeled_image(people, photoDimension, photoPath)
                 FLEImageMagickAPI.add_command_string(labelling_context.imageMagickHandle, command_string)
             end
         end
-        
+
         -- label boxes
         if local_exportParams.draw_label_boxes then
             command_string = '# Label box outlines'
@@ -298,7 +298,7 @@ function FLEMain.export_labeled_image(people, photoDimension, photoPath)
                 FLEImageMagickAPI.add_command_string(labelling_context.imageMagickHandle, command_string)
             end
         end
-        
+
         -- label text
         if local_exportParams.draw_label_text then
             command_string = '# Face labels'
@@ -323,9 +323,9 @@ function FLEMain.export_labeled_image(people, photoDimension, photoPath)
                 FLEImageMagickAPI.add_command_string(labelling_context.imageMagickHandle, command_string)
             end
         end
-        
+
     end -- label_image
-        
+
     -- label image
     if local_exportParams.crop_image and photoDimension.HasCrop then
         command_string = string.format('-crop %dx%d+%d+%d',
@@ -348,6 +348,27 @@ function FLEMain.export_labeled_image(people, photoDimension, photoPath)
 end
 
 --------------------------------------------------------------------------------
+-- Get font list
+
+function FLEMain.get_font_list()
+    logger.writeLog(4, "FLEMain.get_font_list()")
+
+    local success = true
+    local font_list = {}
+    command_string = '-list font'
+    success, output = FLEImageMagickAPI.execute_convert_get_output(labelling_context.imageMagickHandle, command_string)
+    if success then
+        for line in output:gmatch('[^\r\n]+') do
+            local font_name = line:match('Font:%s*(.*)')
+            if font_name then
+                table.insert(font_list, font_name)
+            end
+        end
+    end
+    return success, font_list
+end
+
+--------------------------------------------------------------------------------
 -- Initialisation
 
 function init()
@@ -356,7 +377,12 @@ function init()
     labelling_context.people = nil
     labelling_context.labels = nil
     labelling_context.photo_dimensions = nil
-    
+
+    -- initialise font list; font_type
+    --logger.writeLog(4, "Get font list")
+    --success, font_list = FLEMain.get_font_list()
+    --success = true -- reset value
+
     label_config.font_size = local_exportParams.label_font_size_fixed
     label_config.format_experiment_list = local_exportParams.format_experiment_list
     if label_config.format_experiment_list then -- handle null list
@@ -374,26 +400,26 @@ end
 
 function get_person(photoDimension, region)
     local name = utils.ifnil(region.name, 'Unknown')
-    
+
     x = region.x
     y = region.y
     w = region.w
     h = region.h
-    
-    logger.writeLog(4, string.format("Name '%s', x:%d y:%d, w:%d, h:%d", 
+
+    logger.writeLog(4, string.format("Name '%s', x:%d y:%d, w:%d, h:%d",
         name, x, y, w, h))
-    
+
     if local_exportParams.obfuscate_labels then
         name = utils.randomise_string(name)
     end
-    
+
     person = {}
     person.x = x
     person.y = y
     person.w = w
     person.h = h
     person.name = name
-    
+
     return person
 end
 
@@ -406,7 +432,7 @@ function get_people(photoDimension, face_regions)
             people[i] = get_person(photoDimension, region)
         end -- for i, region in pairs(face_regions)
     end -- if face_regions and #face_regions > 0
-    
+
     return people
 end
 
@@ -415,27 +441,27 @@ end
 
 function keep_within_image(x, y, w, h)
     photoDimension = labelling_context.photo_dimensions
-    
+
     local X = utils.ifnil(photoDimension.CropX, 0)
     local Y = utils.ifnil(photoDimension.CropY, 0)
     local W = utils.ifnil(photoDimension.CropW, photoDimension.width)
     local H = utils.ifnil(photoDimension.CropH, photoDimension.height)
     local margin = local_exportParams.image_margin
-    
+
     if x < X + margin then -- ensure not negative
         x = X + margin
     end
     if y < Y + margin then
         y = Y + margin
     end
-    
+
     if (x + w) > (W - margin) then -- ensure not exceeding image dimensions
         x = W - margin - w
     end
     if (y + h) > (H - margin) then
         y = H - margin - h
     end
-    
+
     return x,y
 end
 
@@ -444,20 +470,20 @@ end
 
 function get_label_position_and_size(label)
     local success = true
-    
+
     person = label.person
     text = utils.text_line_wrap(label.text, label.num_rows)
-    
+
     if label.w ~= nil then -- check if label size already known, to save time
         label_w = label.w
         label_h = label.h
     else
-        success, label_w, label_h = get_label_size(text, 
+        success, label_w, label_h = get_label_size(text,
                                       local_exportParams.font_type,
                                       label.font_size,
                                       local_exportParams.font_line_width)
     end
-                                      
+
     if label.position == 'below' then
         x = person.x + math.floor(person.w / 2) - math.floor(label_w / 2)
         y = person.y + person.h -- should probably add some margin
@@ -479,9 +505,9 @@ function get_label_position_and_size(label)
         x, y  = person.x, person.y
         align = 'center'
     end
-    
+
     x, y = keep_within_image(x, y, label_w, label_h)
-    
+
     return x, y, label_w, label_h, align
 end
 
@@ -494,14 +520,14 @@ function set_label_position(label, position, num_rows, text_align, font_size)
         label.w = nil
         label.h = nil
     end
-    
+
     if position   then label.position   = position   end
     if num_rows   then label.num_rows   = num_rows   end
     if text_align then label.text_align = text_align end
     if font_size  then label.font_size  = font_size  end
-    
+
     label.x, label.y, label.w, label.h, label.text_align = get_label_position_and_size(label)
-    
+
     return label
 end
 
@@ -519,7 +545,7 @@ function get_labels()
                 label.position_clash = false -- initial value
                 label.person = person
                 logger.writeLog(3, "- set_label_position: " .. label.text)
-                label = set_label_position(label, 
+                label = set_label_position(label,
                                            local_exportParams.default_position,
                                            local_exportParams.default_num_rows,
                                            local_exportParams.default_align,
@@ -553,9 +579,9 @@ end
 
 function get_label_size(text, font, size, line_width)
     local escaped_text = text:gsub('\n', [[\n]])--([[\n]], '\n')
-    command_string = '-font ' .. font .. 
-                     ' -pointsize ' .. size .. 
-                     ' -strokewidth ' .. line_width .. 
+    command_string = '-font ' .. font ..
+                     ' -pointsize ' .. size ..
+                     ' -strokewidth ' .. line_width ..
                      ' label:' .. '"' .. escaped_text .. '"' ..
                      ' -format "%wx%h" info:'
     success, output = FLEImageMagickAPI.execute_convert_get_output(labelling_context.imageMagickHandle, command_string)
@@ -579,14 +605,14 @@ end
 
 function determine_label_font_size()
     local success = true
-    
+
     if local_exportParams.label_size_option == 'LabelFixedFontSize' then
         font_size = local_exportParams.label_font_size_fixed
         logger.writeLog(5, "determine_label_font_size: fixed font size " .. font_size)
     else
         local people = labelling_context.people
         local photoDimension = labelling_context.photo_dimensions
-        
+
         local image_width = utils.ifnil(photoDimension.CropW, photoDimension.width)
 
         average_region_size = get_average_region_size(people)
@@ -604,13 +630,13 @@ function determine_label_font_size()
             elseif image_to_region_width_ratio_normalised < 0 then
                 image_to_region_width_ratio_normalised = 0
             end
-            
+
             logger.writeLog(5, "determine_label_font_size: image_to_region_width_ratio_normalised " .. image_to_region_width_ratio_normalised)
             label_size_ratio = image_to_region_width_ratio_normalised * (local_exportParams.label_width_to_region_ratio_small - local_exportParams.label_width_to_region_ratio_large) + local_exportParams.label_width_to_region_ratio_large
             logger.writeLog(5, "determine_label_font_size: label_size_ratio " .. label_size_ratio)
             target_width = math.min(average_region_size * label_size_ratio, image_width)
             logger.writeLog(5, "target_width " .. target_width)
-            
+
             local search_phase = 'start' -- initial value
             local success = true -- initial value
             local secondary_iterations = 0 -- initial value
@@ -622,7 +648,7 @@ function determine_label_font_size()
             while ( (search_phase ~= 'end') and success ) do
                 local search_increasing_update = true -- initial value
                 local direction_change = false -- initial value
-                
+
                 if search_phase == 'primary_coarse_search' then
                     if search_increasing then
                         font_size_delta = font_size -- doubling on the way up
@@ -633,12 +659,12 @@ function determine_label_font_size()
                     if search_increasing then delta_multiple = 0.5 else delta_multiple = -0.5 end
                     font_size_delta = math.floor(math.abs(font_size_delta) * delta_multiple)
                 end
-                
+
                 if search_phase ~= 'start' then
                     font_size = font_size + font_size_delta
                 end
-                
-                success, test_label_w, test_label_h = get_label_size(local_exportParams.test_label, 
+
+                success, test_label_w, test_label_h = get_label_size(local_exportParams.test_label,
                                                             local_exportParams.font_type,
                                                             font_size,
                                                             local_exportParams.font_line_width)
@@ -647,7 +673,7 @@ function determine_label_font_size()
                     direction_change = (search_increasing_update ~= search_increasing)
                     logger.writeLog(5, search_phase .. '; search_increasing:' .. tostring(search_increasing) .. '; font_size_delta:' .. tostring(font_size_delta) .. '; test_label_w:' .. test_label_w .. ' ; target_width:' .. target_width)
                 end
-                
+
                 if search_phase == 'start' then
                     search_increasing_update = (test_label_w < target_width)
                     search_phase = 'primary_coarse_search'
@@ -662,9 +688,9 @@ function determine_label_font_size()
                     logger.writeLog(0, "determine_label_font_size: unknown search phase: " .. search_phase)
                     search_phase = 'end'
                 end
-                
+
                 search_increasing = search_increasing_update
-                
+
             end -- while search_phase
         end -- if average_region_size and average_region_size > 0
     end -- if
@@ -687,7 +713,7 @@ function translate_align_to_gravity(text_align)
         logger.writeLog(0, "Unknown text align: " .. text_align)
         gravity = 'center'
     end
-    
+
     return gravity
 end
 
@@ -712,7 +738,7 @@ function check_clash_area(x1, y1, w1, h1,  x2, y2, w2, h2)
             logger.writeLog(0, "check_clash_area: negative x_size or y_size:" .. x_size .. ', ' .. y_size)
         end
     end
-    
+
     return is_overlap, overlap_area
 end
 
@@ -723,7 +749,7 @@ function check_label_clash_area(label)
     local overall_clash = false -- initial value
     local clash_area = 0 -- initial value
     local label_clash_area = 0 -- initial value
-    
+
     -- check for clash with other labels
     labels = labelling_context.labels
     for i, other in pairs(labels) do
@@ -737,7 +763,7 @@ function check_label_clash_area(label)
             end
         end
     end
-    
+
     -- check for clash with face outlines
     people = labelling_context.people
     for i, person in pairs(people) do
@@ -749,7 +775,7 @@ function check_label_clash_area(label)
             logger.writeLog(4, "- label " .. label.text .. " clash with person:" .. person.name)
         end
     end
-    
+
     return overall_clash, label_clash_area
 end
 
@@ -774,23 +800,23 @@ function optimise_single_label(label, experiment_list)
     local photoDimension = labelling_context.photo_dimensions
     local image_width = utils.ifnil(photoDimension.CropW, photoDimension.width)
     local label_clash_area = 0 -- initial value
-    
+
     if local_experiment_list and #local_experiment_list>0 then
         local experiment = table.remove(local_experiment_list)
         logger.writeLog(4, "- optimise_single_label - experiment: " .. experiment)
-        
+
         if experiment == 'num_rows' then options_list = label_config.num_rows_experiment_list
         elseif experiment == 'position' then options_list = label_config.positions_experiment_list
         elseif experiment == 'revert_to_default_position' then options_list = {local_exportParams.default_position}
         else
             logger.writeLog(0, "optimise_single_label - unknown experiment type: " .. experiment)
         end
-        
+
         for i, option in pairs(options_list) do
             if local_experiment_list and #local_experiment_list>0 then -- iterating - depth-first
                 clash = optimise_single_label(label, local_experiment_list)
             end
-            
+
             clash = label.position_clash
             if clash then -- still a clash from depth-first experiment, so work to do ...
                 logger.writeLog(4, "- - experiment trying:" .. experiment .. " option: " .. option)
@@ -804,8 +830,8 @@ function optimise_single_label(label, experiment_list)
                 else
                     logger.writeLog(0, "optimise_single_label - unknown experiment type: " .. experiment)
                 end
-                
-                label = set_label_position(label, 
+
+                label = set_label_position(label,
                                            try_position,
                                            try_num_rows,
                                            nil,
@@ -822,9 +848,9 @@ function optimise_single_label(label, experiment_list)
                 end -- if label.w > image_width; else
             end -- if clash
         end -- for i, option in pairs(options_list)
-        
+
     end -- if local_experiment_list and #local_experiment_list>0
-    
+
     return clash
 end
 
@@ -841,7 +867,7 @@ function copy_labels_to_config(labels, font_size)
         dest_config.labels[i].position = label.position
         dest_config.labels[i].num_rows = label.num_rows
     end -- for i, label in pairs(labels)
-    
+
     return dest_config
 end
 
@@ -852,7 +878,7 @@ function copy_config_to_labels(source_config)
         labelling_context.labels[i].position = label.position
         labelling_context.labels[i].num_rows = label.num_rows
     end -- for i, label in pairs(source_config.labels)
-    
+
     label_config.font_size = source_config.font_size
     for i, label in pairs(labelling_context.labels) do
         label = set_label_position(label, nil, nil, nil, source_config.font_size)
@@ -861,13 +887,13 @@ end
 
 function get_position_clash_lookup(labels, exclusion_lookup)
     local position_clash_lookup = {} -- initial value
-    
+
     for i, label in pairs(labels) do
         if not exclusion_lookup[i] then
             position_clash_lookup[i] = label.position_clash
         end -- if not exclusion_lookup[i]
     end -- for i, label in pairs(labels)
-    
+
     return position_clash_lookup
 end
 
@@ -884,13 +910,13 @@ function combine_boolean_lists(list1, list2)
             new_list[i] = local_list1[i] or local_list2[i]
         end -- for i, is_true in pairs(local_list1)
     end
-    
+
     return new_list
 end
 
 function mask_boolean_list(list, mask)
     local new_list = {} -- initial value
-    
+
     for i, is_true in pairs(list) do
         if mask then
             new_list[i] = list[i] and not mask[i]
@@ -898,7 +924,7 @@ function mask_boolean_list(list, mask)
             new_list[i] = list[i]
         end
     end -- for i, is_true in pairs(list)
-    
+
     return new_list
 end
 
@@ -907,7 +933,7 @@ function len_boolean_list(list)
     for i, is_true in pairs(list) do
         if is_true then len = len + 1 end
     end -- for i, is_true in pairs(list)
-    
+
     return len
 end
 
@@ -923,7 +949,7 @@ end
 function get_experiment_details(exp_name)
     local exp_details = {} -- initial value
     local found = false -- initial value
-    
+
     if exp_name == 'position' then
         exp_details.options = list_move_to_front(label_config.positions_experiment_list, local_exportParams.default_position)
         exp_details.scope = 'per_label'
@@ -940,13 +966,13 @@ function get_experiment_details(exp_name)
     else
         logger.writeLog(0, "get_experiment_details: unknown experiment name: " .. exp_name)
     end
-    
+
     if found then
         exp_details.name = exp_name
         exp_details.len = #exp_details.options
         exp_details.num = math.min(1, exp_details.len)
     end
-    
+
     return exp_details
 end
 
@@ -967,7 +993,7 @@ function get_global_experiment_values(global_experiments)
             end
         end
     end
-    
+
     return font_size
 end
 
@@ -991,7 +1017,7 @@ function get_per_label_experiment_values(per_label_experiments)
             end
         end
     end
-    
+
     return position, num_rows
 end
 
@@ -1053,9 +1079,9 @@ function build_experiment_list(labels_in_this_experiment)
                 end
             end
         end -- for i, is_included in pairs(labels_in_this_experiment)
-        
+
     end -- if format_experiment_list
-    
+
     return experiment_list
 end
 
@@ -1103,7 +1129,7 @@ function apply_label_experiments(experiment_list)
             if not (try_position or try_num_rows) then
                 logger.writeLog(0, "apply_label_experiments: no position or num_rows found in experiment")
             else
-                label = set_label_position(labelling_context.labels[i], 
+                label = set_label_position(labelling_context.labels[i],
                                            try_position,
                                            try_num_rows,
                                            nil,
@@ -1126,17 +1152,17 @@ end
 function increment_and_apply_experiment(experiment_list)
     local overflow = false -- initial value
     local finished = false -- initial value
-    
+
     local label_num = 1 -- initial value
     local first_label_num = 1 -- initial value
     local experiment_level = 1 -- initial value
     local is_found = false -- initial value
-    
+
     local reset_experiment_labels_list = false -- initial value
-    
+
     is_found, first_label_num = find_next_label_in_experiment(experiment_list, nil)
     label_num = first_label_num
-    
+
     while not finished do
 
         if not is_found then
@@ -1144,9 +1170,9 @@ function increment_and_apply_experiment(experiment_list)
             finished = true
             logger.writeLog(0, "increment_and_apply_experiment: no labels found in experiment")
         else -- if not is_found; else
-        
+
             logger.writeLog(5, "increment_and_apply_experiment: experiment_level:" .. tostring(experiment_level) .. '; label_num:' .. label_num)
-            
+
             local scope = experiment_list.per_label[label_num].experiment[experiment_level].scope
             local name = experiment_list.per_label[label_num].experiment[experiment_level].name
             if scope == 'per_label' then
@@ -1200,12 +1226,12 @@ function increment_and_apply_experiment(experiment_list)
                         finished = true
                     end -- if experiment_level < label_config.num_experiments
                 end -- if num < len
-                
+
             else -- if scope == 'per_label'; elseif scope == 'global'
                 logger.writeLog(0, "increment_and_apply_experiment: unknown scope: " .. tostring(scope))
                 finished = true
             end -- if scope == 'per_label'
-            
+
         end -- if not is_found
     end -- while not finished
 
@@ -1214,7 +1240,7 @@ function increment_and_apply_experiment(experiment_list)
     logger.writeLog(5, "increment_and_apply_experiment: applying experiment settings")
     apply_global_experiments(experiment_list)
     apply_label_experiments(experiment_list)
-    
+
     return is_new_experiment, reset_experiment_labels_list
 end
 
@@ -1227,7 +1253,7 @@ function test_label_positions()
     local image_width = utils.ifnil(photoDimension.CropW, photoDimension.width)
     local label_clash_area = 0 -- initial value
     local total_clash_area = 0 -- initial value
-    
+
     for i, label in pairs(labels) do
         if label.w > image_width then -- label is wider than the image
             is_clash = true
@@ -1235,7 +1261,7 @@ function test_label_positions()
             label_clash, label_clash_area = check_label_clash_area(label)
             label.position_clash = label_clash
             logger.writeLog(5, "- - test_label_positions: label " .. tostring(i) .. ' label_clash:' .. tostring(label_clash) .. ' clash area:' .. tostring(label_clash_area))
-            
+
             if label_clash then
                 is_clash = true
                 total_clash_area = total_clash_area + label_clash_area
@@ -1260,11 +1286,11 @@ function optimise_labels(labels_in_higher_level_experiments,
     local is_error = false -- initial value
     local experiment_list = nil -- initial value
     local reset_experiment_labels_list = false -- initial value
-    
+
     local best_config = nil -- initial value
 
     experiment_loop_count = utils.ifnil(experiment_loop_count, 1)
-    
+
     logger.writeLog(3, "- optimise_labels: starting")
     while not is_finished do
         logger.writeLog(4, " - test_label_positions")
@@ -1280,13 +1306,13 @@ function optimise_labels(labels_in_higher_level_experiments,
                 best_config = copy_labels_to_config(labelling_context.labels, label_config.font_size)
                 minimum_overlap = amount_of_overlap
             end
-            
+
             local delta_clash_list = {} -- initial value
             if not labels_in_this_experiment or not experiment_list or reset_experiment_labels_list then
                 logger.writeLog(4, "- optimise_labels: update labels_in_this_experiment")
                 labels_in_this_experiment = mask_boolean_list(clashing_labels, labels_in_higher_level_experiments)
                 reset_experiment_labels_list = false -- reset flag after use
-                
+
                 if len_boolean_list(labels_in_this_experiment) == 0 then
                     is_error = true
                     is_finished = true
@@ -1301,11 +1327,11 @@ function optimise_labels(labels_in_higher_level_experiments,
                     logger.writeTable(5, experiment_list)
                 end
             end
-            
+
             logger.writeLog(4, "- optimise_labels: generate delta_clash_list")
             local combined_experiment_list = combine_boolean_lists(labels_in_higher_level_experiments, labels_in_this_experiment)
             delta_clash_list = mask_boolean_list(clashing_labels, combined_experiment_list)
-        
+
             if len_boolean_list(delta_clash_list)>0 then
                 logger.writeLog(4, "- optimise_labels: recurse into optimise_labels to try experiments on newly discovered delta_clash_list")
                 local local_labels_in_this_experiment = utils.table_copy(labels_in_this_experiment)
@@ -1322,7 +1348,7 @@ function optimise_labels(labels_in_higher_level_experiments,
                     logger.writeLog(4, "- optimise_labels: increment_and_apply_experiment; done")
 
                     print_experiment_summary(experiment_list)
-                    
+
                     if not is_new_experiment then -- exhausted all the experiment options
                         logger.writeLog(4, "- optimise_labels: exhausted all the experiment options")
                         is_finished=true
@@ -1331,9 +1357,9 @@ function optimise_labels(labels_in_higher_level_experiments,
                    logger.writeLog(4, "- optimise_labels: delta but is_finished=" .. tostring(is_finished) .. '; is_error = ' .. tostring(is_error))
                 end -- if not is_finished
             end -- if delta_clash_list
-            
+
         end -- if not is_clash; else
-        
+
         if experiment_loop_count < local_exportParams.experiment_loop_limit then
             if math.floor((experiment_loop_count + 1)/100) ~= math.floor(experiment_loop_count/100) then
                 logger.writeLog(1, "optimise_labels is taking a while; experiment_loop_count reached: " .. experiment_loop_count+1 .. " ; limit is: " .. local_exportParams.experiment_loop_limit)
@@ -1346,7 +1372,7 @@ function optimise_labels(labels_in_higher_level_experiments,
             is_finished = true
         end
     end -- while not is_finished
-    
+
     if (is_finished and not is_clash) then
         recommended_config = copy_labels_to_config(labelling_context.labels, label_config.font_size)
     else

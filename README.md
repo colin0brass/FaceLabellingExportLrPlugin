@@ -23,10 +23,10 @@ The plug-in did the following:
 There is certainly lots that can be improved (see some thoughts listed further below), but hopefully this can be useful.
 
 ## Status
-This plug-in was first created in August 2020, and has limited use so far, 
+This plug-in was first created in August 2020, and has limited use so far,
 but does seem to be working for a few users across Mac and Windows platforms.
 
-Please also be aware that I only have limited image test-cases, so I fully expect there to still be limitations and 
+Please also be aware that I only have limited image test-cases, so I fully expect there to still be limitations and
 issues across a broader set of image formats and exif variations.
 
 In the first releases I strongly advised this only for the intrepid who were comfortable with computing and scripting,
@@ -58,8 +58,8 @@ This plug-in requires the following separate helper tools to be installed:
 I have tried including a copy of ExifTool inside this plug-in, and it works for me both on Mac and Windows, but I
 fully expect there might be limitations and others might end up having to install ExifTool themselves.
 
-On Mac the operating system requires binaries to be confirmed safe before use. To do this, open the plug-in folder 
-in Finder (e.g. right click on it and 'Show Package Contents), browse to helper app file (e.g. Mac/ExifTool/exiftool), 
+On Mac the operating system requires binaries to be confirmed safe before use. To do this, open the plug-in folder
+in Finder (e.g. right click on it and 'Show Package Contents), browse to helper app file (e.g. Mac/ExifTool/exiftool),
 and 'open' it (e.g. right click and select 'Open') to prompt the OS to look at it and ask you if you trust it.
 
 I did try to include imagemagick inside this plug-in, however it didn't work, so that definitely needs to be separately
@@ -95,23 +95,29 @@ If you are done with this plug-in and want to remove it:
 Once the plug-in is installed, please check its configuration in Plug-in Manager.
 See "Overall Settings", where the paths to the helper apps are configured.
 
-It will have a go at choosing default paths for Mac vs Windows, however they might well be wrong for your computer 
+It will have a go at choosing default paths for Mac vs Windows, however they might well be wrong for your computer
 setup, so please do check and update as necessary. The default paths for ImageMagick are simple fixed paths, with no
 clever sensing or update going on, so they are highly likely to need updating.
 
-Please check if it says 'Found' for all of the helper apps, and if not, ensure they are installed and that the 
+Please check if it says 'Found' for all of the helper apps, and if not, ensure they are installed and that the
 paths are correct.
 
 Export settings in Export dialog box are persistent between sessions (saved during 'Export' operation)
 
 ### Export
-Once the plug-in is installed and configured (as above), select some photos from your libary in Lightroom (Classic) 
+Once the plug-in is installed and configured (as above), select some photos from your libary in Lightroom (Classic)
 and click 'Export...".
 
 Select "Face Labelling Export" from the "Export To:" option at the top of the screen.
 
-I have not done any testing of the standard Export "Add to this catalog" option. I suspect I might try to remove it 
+I have not done any testing of the standard Export "Add to this catalog" option. I suspect I might try to remove it
 in future.
+
+I have added selection of the font type, which uses ImageMagick to list available system fonts
+In case of problems, or to check what fonts ImageMagick knows about, try something like the following on the command-line (adding path to ImageMagick app if you need to):
+`magick -list font`
+or on a linux-like system with "grep" available, to get a more condensed font list:
+`magick -list font | grep Font`
 
 Check the export location, choose your labelling options (e.g. whether to draw the text, and which boxes to draw)
 and finally click "Export"
@@ -134,14 +140,14 @@ I have used the following for my (limited) testing so far:
 
 ### Mac
 * iMac (2017), Intel Core i5; 16GB RAM
-* MacOS Catalina v10.15.6; Big Sur v11.1, v11.2
-* Lightroom Classic v9.4; v10.1; v10.1.1
+* MacOS Catalina v10.15.6; Big Sur v11.1, v11.2; Monterey v12.4
+* Lightroom Classic v9.4; v10.1; v10.1.1; v11.4
 * ImageMagick 7.0.10-25
 * ExifTool 12.01
 
 ### Windows
 * Lenovo Thinkpad, Intel i3; 8GB RAM
-* Windows 10 Home, v1909
-* lightroom Classic v9.4
-* ImageMagic 7.0.10-28
-* ExifTool 12.04
+* Windows 10 Home, v1909; v21H1
+* lightroom Classic v9.4; v11.4.1
+* ImageMagic 7.0.10-28; 7.1.0-39
+* ExifTool 12.04; 12.42

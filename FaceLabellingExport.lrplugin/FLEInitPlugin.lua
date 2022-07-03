@@ -79,20 +79,20 @@ local temp_dir_path = LrPathUtils.getStandardFilePath("temp")
 manager_table = {
     -- Plug-in details
     { key = 'FLEUrl',               default = plugin_url, fixed = true },
-    
+
     -- Helper apps
     { key = 'exifToolApp',          default = default_exiftool_app },
     { key = 'imageMagickApp',       default = default_imagemagick_app },
     { key = 'imageConvertApp',      default = default_image_convert_app },
-    
+
     -- Plug-in logs
     { key = 'logger_filename',      default = "FaceLabellingExport", fixed = true },
     { key = 'logger_verbosity',     default = 2 },
-    
+
     -- ExifTool logs
     { key = 'exifLogFilePath',      default = temp_dir_path, fixed = true },
     { key = 'exifToolLogDelete',    default = true },
-    
+
     -- ImageMagick Logs
     { key = 'imageMagickLogFilePath', default = temp_dir_path, fixed = true },
     { key = 'imageMagickLogDelete',   default = true },
@@ -113,9 +113,10 @@ preference_table = {
     { key = 'obfuscate_labels', 	default = false },
 	{ key = 'obfuscate_image', 	    default = false },
 	{ key = 'remove_exif', 	        default = true },
-	
+
     -- Labelling preferences - font
     { key = 'font_type', 	                      default = MAC_ENV and 'Courier' or 'Courier-New' },
+    { key = 'font_list',                          default = {} },
 	{ key = 'label_size_option', 	              default = 'LabelDynamicFontSize' },
 	{ key = 'label_font_size_fixed', 	          default = 60 },
 	{ key = 'font_colour', 	                      default = 'white' },
@@ -126,7 +127,7 @@ preference_table = {
 	{ key = 'label_width_to_region_ratio_large',  default = 0.5 },
 	{ key = 'image_width_to_region_ratio_small',  default = 20 },
 	{ key = 'image_width_to_region_ratio_large',  default = 1 },
-	
+
     -- Labelling preferences - labels
 	{ key = 'label_auto_optimise', default = true },
 	{ key = 'label_outline_colour', default = 'red' },
@@ -147,7 +148,7 @@ preference_table = {
 	{ key = 'font_size_experiment_list', default = nil },
 	{ key = 'experiment_order', default = 'Pos/Rows/Font' },
 	{ key = 'experiment_loop_limit', default = 200, fixed = false},
-	
+
     -- Export thumbnails preferences
 	{ key = 'export_thumbnails', default = false },
 	{ key = 'export_thumbnails_if_unnamed', default = false },
@@ -230,9 +231,9 @@ end
 
 function build_experiment_definitions(reset)
     reset = utils.ifnil(reset, false)
-    
+
     logger.writeLog(5, "build_experiment_definitions: reset=" .. tostring(reset))
-    
+
     local exp_list = {} -- initial value
     for exp_key, exp in pairs(experiment_definitions.experiments) do
 
@@ -258,24 +259,24 @@ function build_experiment_definitions(reset)
             exp.is_enabled = is_value_in_list(prefs[experiment_definitions.experiment_list.prefs_var], exp.key)
             logger.writeLog(5, "build_experiment_definitions: restoring " .. tostring(exp.key) .. " : " .. tostring(exp.is_enabled))
         end -- if reset; else
-        
+
         -- update individual experiment list & prefs
         exp.list_value = exp_opt_list -- update experiment list
         if exp.prefs_var and exp.list_value then
             prefs[exp.prefs_var] = exp.list_value -- update preferences experiment list
         end
-        
+
         -- update overall experiment list
         if exp.is_enabled then exp_list[#exp_list+1] = exp.key end
-        
+
     end -- for exp_key, exp
-    
+
     -- update list & prefs
     experiment_definitions.experiment_list.list_value = exp_list
     if experiment_definitions.experiment_list.prefs_var and experiment_definitions.experiment_list.list_value then
         prefs[experiment_definitions.experiment_list.prefs_var] = experiment_definitions.experiment_list.list_value
     end
-    
+
     return experiment_definitions
 end
 
