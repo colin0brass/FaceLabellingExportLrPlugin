@@ -57,15 +57,15 @@ local FLEExifToolAPI = {}
 
 function FLEExifToolAPI.openSession(exportParams)
 	logger.writeLog(2, 'Starting exiftool session')
-	
-	handle = _openExifTool(exportParams) 
+
+	handle = _openExifTool(exportParams)
 	return handle
 end
 
 function FLEExifToolAPI.closeSession(handle)
 	logger.writeLog(2, 'Closing exiftool session')
-	
-	if handle then 
+
+	if handle then
 		_closeExifTool(handle)
 	end
 end
@@ -78,21 +78,21 @@ function FLEExifToolAPI.getFaceRegionsList(handle, photoFilename)
     local queryResults = nil -- initial value
     local personTags = {} -- initial value
     local photoSize = {} -- initial value
-    
+
     -- Define which fields to retrieve from EXIF using ExifTool and custom config (script) file
     local exif_command = '-struct -j -RegionsAbsoluteNotFocus'
     if logger.get_log_level() >= 5 then -- get more information to help with debug
         exif_command = exif_command .. ' -ImageWidth -ImageHeight -RegionsCentred -AlreadyApplied -Orientation'
     end
-    
+
 	success = _exifTool_send_command(handle, exif_command)
 	success = success and _exifTool_send_filename(handle, photoFilename)
-	
+
 	if not success then
 		logger.writeLog(2, string.format("FLEExifToolAPI.getFaceRegionsList send command failed: %s",
 							photoFilename))
-	else  
-        success, queryResults = _exifTool_execute_commands(handle) 
+	else
+        success, queryResults = _exifTool_execute_commands(handle)
         if not success or not queryResults then
             logger.writeLog(2, "FLEExifToolAPI.getFaceRegionsList: exiftool execution failed")
         else
@@ -107,8 +107,41 @@ function FLEExifToolAPI.getFaceRegionsList(handle, photoFilename)
             end
         end
     end
-	
+
 	return personTags, photoSizes
+end
+
+--------------------------------------------------------------------------------
+-- ExifTool add Face Region
+
+function FLEExifToolAPI.addFaceRegion(handle, personTag, photoFilename, replace)
+    local success = true -- initial value
+
+    local join_operator = '+=' -- default is to append
+    if replace then
+        join_operator = '=' -- replace without appending
+    else
+        join_operator = '+=' -- append
+    end
+
+    local exif_command = string.format('-regionlist%s{Area={H=%.1f,W=%.1f,X=%.1f,Y=%.1f,Unit=%s},Name=\'%s\',Type=Face}',
+                                        join_operator,
+                                        personTag.h, personTag.w,
+                                        personTag.x, personTag.y,
+                                        personTag.unit,
+                                        personTag.name)
+
+	success = _exifTool_send_command(handle, exif_command)
+	success = success and _exifTool_send_filename(handle, photoFilename)
+
+	if not success then
+		logger.writeLog(2, string.format("FLEExifToolAPI.addFaceRegion send command failed: %s",
+							photoFilename))
+	else
+	    logger.writeLog(3, string.format("FLEExifToolAPI.addFaceRegion: %s", photoFilename))
+	    logger.writeLog(3, exif_command)
+	    success, queryResults = _exifTool_execute_commands(handle)
+	end
 end
 
 --------------------------------------------------------------------------------
@@ -117,7 +150,7 @@ end
 function _extract_face_regions(results)
     local personTags = {}
     local photoSize = {}
-    
+
     logger.writeLog(3, "_extract_face_regions")
     if results.RegionsAbsoluteNotFocus then
         local regionsInfo = results.RegionsAbsoluteNotFocus
@@ -129,10 +162,10 @@ function _extract_face_regions(results)
         photoSize.CropW   = utils.ifnil(regionsInfo.ImageInfo.CropW, photoSize.width)
         photoSize.CropH   = utils.ifnil(regionsInfo.ImageInfo.CropH, photoSize.height)
         photoSize.HasCrop = utils.ifnil(regionsInfo.ImageInfo.HasCrop, false)
-        
-        if regionsInfo.RegionList and #regionsInfo.RegionList > 0 then 
+
+        if regionsInfo.RegionList and #regionsInfo.RegionList > 0 then
             local regionList = regionsInfo.RegionList
-    
+
             face_num = 0
             for i = 1, #regionList do
                 logger.writeLog(3, "_extract_face_regions: num " .. i)
@@ -140,15 +173,15 @@ function _extract_face_regions(results)
                 if (region.Type == 'Face') or (not region.Type) then
                     local personTag = {}
                     face_num = face_num + 1
-                    
+
                     personTag.x 	    = tonumber(region.Area.X)
                     personTag.y 	    = tonumber(region.Area.Y)
                     personTag.w 		= tonumber(region.Area.W)
                     personTag.h 		= tonumber(region.Area.H)
                     personTag.name 		= tostring(utils.ifnil(region.Name,''))
-    
-                    personTags[face_num] = personTag 
-                    
+
+                    personTags[face_num] = personTag
+
                     logger.writeLog(4, string.format("_extract_face_regions: Area %d: '%s': x:%d y:%d, w:%d, h:%d",
                                                     face_num,
                                                     personTags[face_num].name,
@@ -161,7 +194,7 @@ function _extract_face_regions(results)
             end -- for i = 1, #regionList
         end -- if regionsInfo.RegionList ...
     end -- if results.RegionsAbsoluteNotFocus
-        
+
     return personTags, photoSize
 end
 
@@ -171,13 +204,13 @@ end
 function _openExifTool(exportParams)
 	local handle = {} -- handle
 	local success = true -- initial value
-	
+
     local tmpdir = LrPathUtils.getStandardFilePath("temp")
     local exiftool_config_file = LrPathUtils.child(_PLUGIN.path, "get_regions.config")
 
 	-- create unique CommandFile and LogFile
     local dateStr = tostring(LrDate.currentTime())
-	handle.exiftool_command_file   = LrPathUtils.child(tmpdir, "exiftool_commands_" .. 
+	handle.exiftool_command_file   = LrPathUtils.child(tmpdir, "exiftool_commands_" ..
 	                                                   dateStr .. ".txt")
 	handle.exiftool_log_file       = LrPathUtils.replaceExtension(handle.exiftool_command_file, "log")
 	handle.exiftool_error_log_file = LrPathUtils.replaceExtension(handle.exiftool_command_file, "error.log")
@@ -185,7 +218,7 @@ function _openExifTool(exportParams)
     handle.cmd_num = 0
 
     local exif_args      = ' -common_args -charset filename=UTF8 -overwrite_original -fast2 -m '
-    
+
 	-- open and truncate commands file
 	local file = io.open(handle.exiftool_command_file, "w")
 	if not file then
@@ -193,11 +226,11 @@ function _openExifTool(exportParams)
 	    success = false
     else
         io.close (file)
-        
+
         -- precautionary check and delete, really for debugging with re-used files
         if LrFileUtils.exists(handle.exiftool_log_file) then LrFileUtils.delete(handle.exiftool_log_file) end
         if LrFileUtils.exists(handle.exiftool_error_log_file) then LrFileUtils.delete(handle.exiftool_error_log_file) end
-    
+
         LrTasks.startAsyncTask ( function()
                 local command = '"' .. exportParams.exifToolApp .. '"' ..
                                 ' -config ' .. '"' .. exiftool_config_file .. '"' ..
@@ -214,7 +247,7 @@ function _openExifTool(exportParams)
                     logger.writeLog(0, string.format("exiftool error: %s", tostring(exitStatus)))
                     success = false
                 end
-            
+
                 -- Clean-up
                 if exportParams.exifToolLogDelete then
                     logger.writeLog(3, "exiftool finishing: cleanup")
@@ -230,10 +263,10 @@ function _openExifTool(exportParams)
                     logger.writeLog(5, "leaving:" .. handle.exiftool_log_file)
                     logger.writeLog(5, "leaving:" .. handle.exiftool_error_log_file)
                 end
-            end 
+            end
         )
     end -- if not file; else
-	
+
 	return handle
 end
 
@@ -245,7 +278,7 @@ function _closeExifTool(handle)
 		logger.writeLog(4, "FLEExifToolAPI: closing exiftool session")
 		success = _exifTool_send_command(handle, "-stay_open False")
 	end
-	
+
 	return success
 end
 
@@ -277,7 +310,7 @@ function _exifTool_insert_command_lines(handle, command_lines)
             io.close(command_file)
         end -- if not command_file; else
     end -- if not handle; else
-    
+
 	return success
 end
 
@@ -285,31 +318,31 @@ function _exifTool_execute_commands(handle)
     local success = true -- initial value
     local exiftool_result = nil -- initial value
     local exiftool_expected_result = nil -- initial value
-    
+
 	handle.cmd_num = handle.cmd_num + 1 -- increment ExifTool command number
-	
+
 	-- send execute command
-	success = _exifTool_send_command(handle, string.format("-execute%04d\n", 
+	success = _exifTool_send_command(handle, string.format("-execute%04d\n",
 	                                                             handle.cmd_num))
 
 	if success then -- wait for response from ExifTool
 	    if handle.cmd_num == 1 then
-	        exiftool_expected_result = string.format("(.*){ready%04d}", 
+	        exiftool_expected_result = string.format("(.*){ready%04d}",
 	                                                 handle.cmd_num)
 	    else
-	        exiftool_expected_result = string.format("{ready%04d}[\r\n]+(.*){ready%04d}", 
+	        exiftool_expected_result = string.format("{ready%04d}[\r\n]+(.*){ready%04d}",
 	                                                 handle.cmd_num - 1, handle.cmd_num)
 	    end
-                                    
+
     	local deadline_time = LrDate.currentTime() + 5 -- number of seconds to wait for result
     	success = false -- initial value on entry to wait for response
         while not exiftool_result and (LrDate.currentTime() < deadline_time) do
             LrTasks.yield()
-            if LrFileUtils.exists(handle.exiftool_log_file) then 
+            if LrFileUtils.exists(handle.exiftool_log_file) then
                 local log_file = io.input (handle.exiftool_log_file)
                 local log_line = log_file:read("*a")
                 io.close(log_file)
-                
+
                 if log_line then
                     exiftool_result = string.match(log_line, exiftool_expected_result)
                     success = true
@@ -317,7 +350,7 @@ function _exifTool_execute_commands(handle)
             end -- if LrFileUtils.exists
         end -- while not exiftool_result and (LrDate.currentTime() < deadline_time)
     end -- if success
-    
+
     return success, exiftool_result
 end
 

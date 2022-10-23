@@ -208,6 +208,14 @@ function FLEMain.export_thumbnail_images(people, photoDimension, photoPath)
             -- execute ImageMagick commands
             FLEImageMagickAPI.execute_commands(labelling_context.imageMagickHandle)
 
+            -- add exif region if required
+            local personTag = {x=0.5,y=0.5,w=1,h=1,unit='normalized',name=''} -- default value
+            -- get person name, including replacing any newline/linefeed/tab with space
+            personTag.name = string.gsub(tostring(person.name,''), "%s", " ")
+            local replace = true -- true to replace, false to append
+            logger.writeLog(2, 'add face region to thumbnail: ' .. personTag.name)
+            FLEExifToolAPI.addFaceRegion(exifToolHandle, personTag, output_file_with_path, replace)
+
         end -- if person_is_named or local_exportParams.export_thumbnails_if_unnamed
 
     end -- for i, person in pairs(people)
