@@ -548,6 +548,11 @@ function exportLabeledImageView(f, propertyTable)
                         value = bind 'draw_label_boxes',
                         enabled = bind 'label_image',
                 },
+                f:checkbox {
+                        title = LOC "$$$/FaceLabelling/ExportDialog/ImageLabelBoxes=Draw caption text",
+                        value = bind 'draw_caption_text',
+                        enabled = bind 'label_image',
+                },
             }, -- group_box
             f:group_box {
                 title = LOC "$$$/FaceLabelling/ExportDialog/ImageFilenameOptions=Obfuscation options",
@@ -881,6 +886,174 @@ function exportLabellingView(f, propertyTable)
             }, -- column
         }, -- row
     } -- group_box; labelling config
+
+    return result
+end
+
+--------------------------------------------------------------------------------
+-- dialog section for export labeled image caption config
+
+function exportCaptionView(f, propertyTable)
+    local bind = LrView.bind
+    local share = LrView.share
+
+    -- expand simple list to list of tuples (title, value) for menu display
+    local list = {'below', 'above'}
+    local menu_positions_list = {}
+    for i, list_value in pairs(list) do
+        menu_positions_list[i] = {title=list_value, value=list_value}
+    end
+
+    -- expand simple list to list of tuples (title, value) for menu display
+    local list = { 'white', 'black', 'blue', 'red', 'green', 'grey' }
+    local menu_colour_list = {}
+    for i, list_value in pairs(list) do
+        menu_colour_list[i] = {title=list_value, value=list_value}
+    end
+
+    result = f:group_box { -- caption config
+        title = "Caption format options",
+        f:row {
+            fill_horizontal = 1,
+
+            f:column {
+                fill_horizontal = 0.3,
+                f:static_text {
+                    title = 'Caption options:',
+                    enabled = bind 'caption_image',
+                },
+            }, -- column
+
+            f:column {
+                fill_horizontal = 0.3,
+                f:group_box { -- Caption options
+                    title = "Caption format options",
+--                    fill_horizontal = 1,
+                    f:static_text {
+                        title = 'Caption position:',
+                        enabled = LrBinding.andAllKeys( 'label_image', 'draw_caption_text'),
+                    },
+                    f:popup_menu {
+                        items = menu_positions_list,
+                        value = bind 'caption_position',
+                        tooltip = "Caption position",
+                        enabled = LrBinding.andAllKeys( 'label_image', 'draw_caption_text'),
+                        place_horizontal = 0.1,
+                    },
+                    f:static_text {
+                        title = 'Caption font size:',
+                        enabled = LrBinding.andAllKeys( 'label_image', 'draw_caption_text'),
+                    },
+                    f:row {
+                        f:edit_field {
+                            width_in_digits = 3,
+                            place_horizontal = 0.1,
+                            min = 1,
+                            max = 100,
+                            precision = 0,
+                            increment = 1,
+                            value = bind('caption_font_size_fixed'),
+                            enabled = LrBinding.andAllKeys( 'label_image', 'draw_caption_text'),
+                            tooltip = "Caption font size",
+                        },
+                        f:slider {
+                            min = 1,
+                            max = 100,
+                            integral = true,
+                            value = bind('caption_font_size_fixed'),
+                            enabled = LrBinding.andAllKeys( 'label_image', 'draw_caption_text'),
+                            tooltip = "Caption font size",
+                            place_vertical = 0.5,
+                            width = 50
+                        },
+                    }, -- row
+                }, -- group_box
+            }, -- column
+
+            f:column {
+                f:group_box { -- Caption format options
+                    title = "Caption format options",
+--                    fill_horizontal = 1,
+
+                    f:static_text {
+                        title = 'Caption font line width:',
+                        enabled = LrBinding.andAllKeys( 'label_image', 'draw_caption_text'),
+                    },
+                    f:row {
+                        f:edit_field {
+                            width_in_digits = 2,
+                            place_horizontal = 0.5,
+                            min = 1,
+                            max = 10,
+                            precision = 0,
+                            increment = 1,
+                            value = bind('caption_font_line_width'),
+                            enabled = LrBinding.andAllKeys( 'label_image', 'draw_caption_text'),
+                            tooltip = 'Caption font line width',
+                        },
+                        f:slider {
+                            min = 1,
+                            max = 10,
+                            integral = true,
+                            value = bind('caption_font_line_width'),
+                            enabled = LrBinding.andAllKeys( 'label_image', 'draw_caption_text'),
+                            tooltip = 'Caption font line width',
+                            place_vertical = 0.5,
+                            width = 50,
+                        },
+                    }, -- row
+                    f:static_text {
+                        title = 'Caption font colour:',
+                        enabled = LrBinding.andAllKeys( 'label_image', 'draw_caption_text'),
+                    },
+                    f:popup_menu {
+                        items = menu_colour_list,
+                        value = bind 'caption_font_colour',
+                        place_horizontal = 0.5,
+                        tooltip = "Caption font colour",
+                        enabled = LrBinding.andAllKeys( 'label_image', 'draw_caption_text'),
+                    },
+                    f:static_text {
+                        title = 'Caption background colour:',
+                        enabled = LrBinding.andAllKeys( 'label_image', 'draw_caption_text'),
+                    },
+                    f:popup_menu {
+                        items = menu_colour_list,
+                        value = bind 'caption_background_colour',
+                        place_horizontal = 0.5,
+                        tooltip = "Caption background colour",
+                        enabled = LrBinding.andAllKeys( 'label_image', 'draw_caption_text'),
+                    },
+                    f:static_text {
+                        title = 'Caption font type:',
+                        enabled = LrBinding.andAllKeys( 'label_image', 'draw_caption_text'),
+                    },
+                    f:popup_menu {
+                        items = LrView.bind { key = 'font_list',
+                            transform = function( value, fromTable )
+                                if fromTable then return list_to_menu(value, caption_font_type) end
+                                return LrBinding.kUnsupportedDirection -- to avoid updating the property table
+                            end,
+                        },
+                        value = bind 'caption_font_type',
+                        place_horizontal = 0.5,
+                        enabled = LrBinding.andAllKeys( 'label_image', 'draw_caption_text'),
+                        tooltip = 'Font type, from available system fonts'
+                    },
+--                    f:static_text {
+--                        title = 'Caption undercolour:',
+--                        enabled = LrBinding.andAllKeys( 'label_image', 'draw_caption_text'),
+--                    },
+--                    f:static_text {
+--                        title = bind 'caption_undercolour',
+--                        place_horizontal = 0.5,
+--                        enabled = LrBinding.andAllKeys( 'label_image', 'draw_caption_text'),
+--                        tooltip = 'Background colour behind caption'
+--                    },
+                }, -- group_box
+            }, -- column
+        }, -- row
+    } -- group_box; caption config
 
     return result
 end
@@ -1621,6 +1794,12 @@ function FLEExportDialogs.sectionsForBottomOfDialog( f, propertyTable )
             f:view {
                 fill_horizontal = 1,
                 exportLabellingView(f, propertyTable),
+            }, -- view
+
+            f:separator { fill_horizontal = 1 },
+            f:view {
+                fill_horizontal = 1,
+                exportCaptionView(f, propertyTable),
             }, -- view
 
             f:separator { fill_horizontal = 1 },

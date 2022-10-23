@@ -71,18 +71,19 @@ function FLEExifToolAPI.closeSession(handle)
 end
 
 --------------------------------------------------------------------------------
--- ExifTool get Face Regions
+-- ExifTool get Face Regions and Photo Info
 
-function FLEExifToolAPI.getFaceRegionsList(handle, photoFilename)
+function FLEExifToolAPI.getFaceRegionsAndPhotoInfo(handle, photoFilename)
     local success = true -- initial value
     local queryResults = nil -- initial value
     local personTags = {} -- initial value
     local photoSize = {} -- initial value
+    local photoDescription = '' -- initial value
 
     -- Define which fields to retrieve from EXIF using ExifTool and custom config (script) file
-    local exif_command = '-struct -j -RegionsAbsoluteNotFocus'
+    local exif_command = '-struct -j -RegionsAbsoluteNotFocus -Description -ImageWidth'
     if logger.get_log_level() >= 5 then -- get more information to help with debug
-        exif_command = exif_command .. ' -ImageWidth -ImageHeight -RegionsCentred -AlreadyApplied -Orientation'
+        exif_command = exif_command .. ' -RegionsCentred -AlreadyApplied -ImageHeight -Orientation'
     end
 
 	success = _exifTool_send_command(handle, exif_command)
@@ -104,11 +105,12 @@ function FLEExifToolAPI.getFaceRegionsList(handle, photoFilename)
             else
                 logger.writeTable(5, results) -- write to log for debug
                 personTags, photoSizes = _extract_face_regions(results[1])
+                photoDescription = utils.ifnil(results[1].Description, '')
             end
         end
     end
 
-	return personTags, photoSizes
+	return personTags, photoSizes, photoDescription
 end
 
 --------------------------------------------------------------------------------
@@ -152,9 +154,9 @@ function _extract_face_regions(results)
     local photoSize = {}
 
     logger.writeLog(3, "_extract_face_regions")
+    photoSize.width   = results.ImageWidth
     if results.RegionsAbsoluteNotFocus then
         local regionsInfo = results.RegionsAbsoluteNotFocus
-        photoSize.width   = regionsInfo.ImageInfo.ImageWidth
         photoSize.height  = regionsInfo.ImageInfo.ImageHeight
         photoSize.orient  = regionsInfo.ImageInfo.Orientation
         photoSize.CropX   = utils.ifnil(regionsInfo.ImageInfo.CropX, 0)

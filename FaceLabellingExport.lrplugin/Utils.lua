@@ -58,13 +58,13 @@ local utils = {}
 
 function utils.file_present( file )
     local file_present = true
-    
+
     if not file then
         file_present = false
     else
         file_present = LrFileUtils.exists(file)
     end
-    
+
     return file_present
 end
 
@@ -77,7 +77,7 @@ function utils.text_line_wrap(text, num_lines)
     for word in text:gmatch("%w+") do table.insert(words, word) end
     num_words = #words
     num_lines = math.min(num_lines, num_words) -- no more lines than words
-    
+
     cumulative_width = {}
     cumulative_width[1] = 0
     for i, word in pairs(words) do
@@ -86,14 +86,14 @@ function utils.text_line_wrap(text, num_lines)
     end
     total_width = cumulative_width[#cumulative_width] + #words - 1 -- len words -1 space
     line_width = (total_width - (num_lines - 1)) / num_lines -- num_lines-1 line breaks
-    
+
     -- cost of a line (words[i] .. words[j-1])
     -- lua table indexes start at 1 (not 0)
     function cost(i, j)
         actual_line_width = math.max(j - i - 1, 0) + cumulative_width[j+1] - cumulative_width[i+1]
         return (line_width - actual_line_width)^2
     end
-    
+
     best = {}
     cost_index_list = {}
     cost_index_pair = {cost = 0, word_index = nil}
@@ -103,7 +103,7 @@ function utils.text_line_wrap(text, num_lines)
         cost_index_list[w+1] = cost_index_pair
     end
     table.insert(best, cost_index_list)
-    
+
     for l = 1, num_lines do
         cost_index_list = {}
         for j = 0, num_words do
@@ -121,7 +121,7 @@ function utils.text_line_wrap(text, num_lines)
         end -- for j
         table.insert(best, cost_index_list)
     end -- for i
-    
+
     lines_reverse_order = {}
     b = num_words
     for l = num_lines, 1, -1 do
@@ -133,10 +133,10 @@ function utils.text_line_wrap(text, num_lines)
         table.insert(lines_reverse_order, line_string) -- was: ' ' .. line_string
         b = a
     end
-    
+
     lines = utils.list_reverse(lines_reverse_order)
     lines_string = table.concat(lines, "\n")
-    
+
     return lines_string
 end
 
@@ -147,7 +147,7 @@ function utils.randomise_string(s)
     math.randomseed(os.time())
     char_list = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ'
     digit_list = '0123456789'
-    
+
     rand_s = '' -- initial value
     if s and #s>0 then
         for i = 1, #s do
@@ -166,7 +166,7 @@ function utils.randomise_string(s)
     else
         rand_s = s
     end
-    
+
     return rand_s
 end
 
@@ -224,12 +224,16 @@ function utils.ifnil(str, alternate)
     result = str -- initial value
     if str == nil then result = alternate end
 	return result
-end 
+end
 
 function utils.iif(condition, then_expr, else_expr)
     result = nil -- initial value
 	if condition then result = then_expr else result = else_expr end
 	return result
+end
+
+function utils.isnil(str)
+    return (str == nil) or (str == '')
 end
 
 --------------------------------------------------------------------------------
@@ -243,7 +247,7 @@ function utils.command_line_quote(command_line)
     else -- Mac
         command_line = command_line -- no change
     end
-    
+
     return command_line
 end
 
@@ -276,7 +280,7 @@ return LrFunctionContext.callWithContext ("", function (context)
         if outFile then LrFileUtils.delete (outFile) end
         if errFile then LrFileUtils.delete (errFile) end
         end)
-       
+
     if getOutput then
         dateStr = tostring(LrDate.currentTime())
         outFile = LrPathUtils.child(tmpdir, 'safeExecute-' .. dateStr .. '.txt')
@@ -288,12 +292,12 @@ return LrFunctionContext.callWithContext ("", function (context)
             commandLine = commandLine .. ' 2>&1'
             end
         end
-        
+
     if WIN_ENV then commandLine = '"' .. commandLine .. '"' end
-    
+
     local exitStatus = LrTasks.execute (commandLine)
     local output, errOutput, success = "", ""
-    
+
     local function outputErr (file, output)
         local err = string.format ("Couldn't read output:\n%s\n%s",
             file, output)
@@ -303,17 +307,17 @@ return LrFunctionContext.callWithContext ("", function (context)
             return -1, err, ""
             end
         end
-        
+
     if outFile then
         success, output = pcall (LrFileUtils.readFile, outFile)
         if not success then return outputErr (outFile, output) end
         end
-        
+
     if errFile then
         success, errOutput = pcall (LrFileUtils.readFile, errFile)
         if not success then return outputErr (errFile, errOutput) end
         end
-        
+
     return exitStatus, output, errOutput
     end) end
 

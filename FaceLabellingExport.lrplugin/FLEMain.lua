@@ -115,6 +115,7 @@ function FLEMain.renderPhoto(srcPath, renderedPath)
     local success = true
     local failures = {}
     local photoDimensions = {}
+    local photoDescription = ''
     local people = {}
     local labels = {}
 
@@ -124,7 +125,7 @@ function FLEMain.renderPhoto(srcPath, renderedPath)
         init()
 
         -- create summary of people from regions
-        face_regions, photoDimension = getRegions(renderedPath)
+        face_regions, photoDimension, photoDescription = getRegionsAndPhotoInfo(renderedPath)
 
         logger.writeTable(4, face_regions) -- write to log for debug
         people = get_people(photoDimension, face_regions)
@@ -134,7 +135,7 @@ function FLEMain.renderPhoto(srcPath, renderedPath)
             FLEMain.export_thumbnail_images(people, photoDimension, renderedPath)
         end
         -- label the exported image (after saving cropped thumbnails)
-        FLEMain.export_labeled_image(people, photoDimension, renderedPath)
+        FLEMain.export_labeled_image(people, photoDimension, photoDescription, renderedPath)
 
     end -- if labelling_context.status_ok
 
@@ -224,7 +225,7 @@ end
 --------------------------------------------------------------------------------
 -- Export labeled image
 
-function FLEMain.export_labeled_image(people, photoDimension, photoPath)
+function FLEMain.export_labeled_image(people, photoDimension, photoDescription, photoPath)
 
     logger.writeLog(2, "Export labeled image")
 
@@ -330,6 +331,43 @@ function FLEMain.export_labeled_image(people, photoDimension, photoPath)
                                                label.x, label.y)
                 FLEImageMagickAPI.add_command_string(labelling_context.imageMagickHandle, command_string)
             end
+        end
+
+        -- caption text
+        if local_exportParams.draw_caption_text and not utils.isnil(photoDescription) then
+            command_string = '# Caption text'
+            FLEImageMagickAPI.add_command_string(labelling_context.imageMagickHandle, command_string)
+            logger.writeLog(3, "Caption text: " .. photoDescription)
+            command_string = string.format('-font %s -pointsize %d -stroke %s -strokewidth %d -fill %s -undercolor "%s"',
+                                           local_exportParams.caption_font_type,
+                                           local_exportParams.caption_font_size_fixed,
+                                           local_exportParams.caption_font_colour,
+                                           local_exportParams.caption_font_line_width,
+                                           local_exportParams.caption_font_colour,
+                                           local_exportParams.caption_background_colour) -- revert to local_exportParams.caption_undercolour if adding on-image caption option
+            FLEImageMagickAPI.add_command_string(labelling_context.imageMagickHandle, command_string)
+            text = photoDescription
+            text_gravity = 'center'
+            logger.writeLog(5, "local_exportParams.caption_background_colour:" .. local_exportParams.caption_background_colour)
+            logger.writeLog(5, "photoDimension.width:" .. photoDimension.width)
+            logger.writeLog(5, "text_gravity:" .. text_gravity)
+            logger.writeLog(5, "text:" .. text)
+            command_string = string.format('-background %s -size %dx -gravity %s caption:"%s"',
+                                           local_exportParams.caption_background_colour,
+                                           photoDimension.width,
+                                           text_gravity,
+                                           text)
+            FLEImageMagickAPI.add_command_string(labelling_context.imageMagickHandle, command_string)
+            local caption_gravity = 'south' -- default value
+            if local_exportParams.caption_position == 'above' then
+                caption_gravity = 'north'
+            else
+                caption_gravity = 'south'
+            end
+            command_string = string.format('-gravity %s', caption_gravity)
+            FLEImageMagickAPI.add_command_string(labelling_context.imageMagickHandle, command_string)
+            command_string = '-composite'
+            FLEImageMagickAPI.add_command_string(labelling_context.imageMagickHandle, command_string)
         end
 
     end -- label_image
@@ -1392,14 +1430,14 @@ function optimise_labels(labels_in_higher_level_experiments,
 end
 
 --------------------------------------------------------------------------------
--- Get face regions from photo file exif data
+-- Get face regions and photo info from photo file exif data
 
-function getRegions(photoPath)
+function getRegionsAndPhotoInfo(photoPath)
     logger.writeLog(4, 'Parse photo: ' .. photoPath)
     exifToolHandle = labelling_context.exifToolHandle
-    local facesLr, photoDimension = FLEExifToolAPI.getFaceRegionsList(exifToolHandle, photoPath)
+    local facesLr, photoDimension, photoDescription = FLEExifToolAPI.getFaceRegionsAndPhotoInfo(exifToolHandle, photoPath)
 
-    return facesLr, photoDimension
+    return facesLr, photoDimension, photoDescription
 end
 
 return FLEMain
