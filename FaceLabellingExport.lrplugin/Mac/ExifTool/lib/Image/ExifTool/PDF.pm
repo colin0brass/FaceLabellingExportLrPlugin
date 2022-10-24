@@ -21,7 +21,7 @@ use vars qw($VERSION $AUTOLOAD $lastFetched);
 use Image::ExifTool qw(:DataAccess :Utils);
 require Exporter;
 
-$VERSION = '1.50';
+$VERSION = '1.55';
 
 sub FetchObject($$$$);
 sub ExtractObject($$;$$);
@@ -280,7 +280,12 @@ my %supportedFilter = (
         ConvertToDict => 1,
     },
     Cs1 => {
-        SubDirectory => { TagTable => 'Image::ExifTool::PDF::Cs1' },
+        SubDirectory => { TagTable => 'Image::ExifTool::PDF::DefaultRGB' },
+        ConvertToDict => 1, # (just in case)
+    },
+    CS0 => {
+        SubDirectory => { TagTable => 'Image::ExifTool::PDF::DefaultRGB' },
+        ConvertToDict => 1, # (just in case)
     },
 );
 
@@ -291,14 +296,7 @@ my %supportedFilter = (
     },
 );
 
-# tags in PDF Cs1 dictionary
-%Image::ExifTool::PDF::Cs1 = (
-    _stream => {
-        SubDirectory => { TagTable => 'Image::ExifTool::ICC_Profile::Main' },
-    },
-);
-
-# tags in PDF ICCBased dictionary
+# tags in PDF ICCBased, Cs1 and CS0 dictionaries
 %Image::ExifTool::PDF::ICCBased = (
     _stream => {
         SubDirectory => { TagTable => 'Image::ExifTool::ICC_Profile::Main' },
@@ -1989,16 +1987,17 @@ sub ProcessDict($$$$;$$)
             } else {
                 $val = ReadPDFValue($val);
             }
-            # convert from UTF-16 (big endian) to UTF-8 or Latin if necessary
-            # unless this is binary data (hex-encoded strings would not have been converted)
             if (ref $val) {
                 if (ref $val eq 'ARRAY') {
+                    delete $$et{LIST_TAGS}{$tagInfo} if $$tagInfo{List};
                     my $v;
                     foreach $v (@$val) {
                         $et->FoundTag($tagInfo, $v);
                     }
                 }
             } elsif (defined $val) {
+                # convert from UTF-16 (big endian) to UTF-8 or Latin if necessary
+                # unless this is binary data (hex-encoded strings would not have been converted)
                 my $format = $$tagInfo{Format} || $$tagInfo{Writable} || 'string';
                 $val = ConvertPDFDate($val) if $format eq 'date';
                 if (not $$tagInfo{Binary} and $val =~ /[\x18-\x1f\x80-\xff]/) {
@@ -2164,6 +2163,7 @@ sub ReadPDF($$)
     # set input record separator
     local $/ = $ws =~ /(\x0d\x0a|\x0d|\x0a)/ ? $1 : "\x0a";
     my (%xref, @mainDicts, %loaded, $mainFree);
+    my ($xrefSize, $mainDictSize) = (0, 0);
     # initialize variables to capture when rewriting
     if ($capture) {
         $capture->{startxref} = $xr;
@@ -2206,6 +2206,7 @@ XRef:
                     $raf->Read($buff, 20) == 20 or return -6;
                     $buff =~ /^\s*(\d{10}) (\d{5}) (f|n)/s or return -4;
                     my $num = $start + $i;
+                    $xrefSize = $num if $num > $xrefSize;
                     # locate object to generate entry from stream if necessary
                     # (must do this before we test $xref{$num})
                     LocateAnyObject(\%xref, $num) if $xref{dicts};
@@ -2242,6 +2243,8 @@ XRef:
             $et->Warn('Error loading secondary dictionary');
             next;
         }
+        # keep track of total trailer dictionary Size
+        $mainDictSize = $$mainDict{Size} if $$mainDict{Size} and $$mainDict{Size} > $mainDictSize;
         if ($loadXRefStream) {
             # decode and save our XRef stream from PDF-1.5 file
             # (but parse it later as required to save time)
@@ -2273,12 +2276,17 @@ XRef:
         # load XRef stream in hybrid file if it exists
         push @xrefOffsets, $$mainDict{XRefStm}, 'XRefStm' if $$mainDict{XRefStm};
         $encrypt = $$mainDict{Encrypt} if $$mainDict{Encrypt};
+        undef $encrypt if $encrypt and $encrypt eq 'null'; # (have seen "null")
         if ($$mainDict{ID} and ref $$mainDict{ID} eq 'ARRAY') {
             $id = ReadPDFValue($mainDict->{ID}->[0]);
         }
         push @mainDicts, $mainDict, $type;
         # load previous xref table if it exists
         push @xrefOffsets, $$mainDict{Prev}, 'Prev' if $$mainDict{Prev};
+    }
+    if ($xrefSize > $mainDictSize) {
+        my $str = "Objects in xref table ($xrefSize) exceed trailer dictionary Size ($mainDictSize)";
+        $capture ? $et->Error($str) : $et->Warn($str);
     }
 #
 # extract encryption information if necessary
@@ -2381,7 +2389,7 @@ including AESV2 (AES-128) and AESV3 (AES-256).
 
 =head1 AUTHOR
 
-Copyright 2003-2020, Phil Harvey (philharvey66 at gmail.com)
+Copyright 2003-2022, Phil Harvey (philharvey66 at gmail.com)
 
 This library is free software; you can redistribute it and/or modify it
 under the same terms as Perl itself.

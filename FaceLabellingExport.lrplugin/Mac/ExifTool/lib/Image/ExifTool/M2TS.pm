@@ -13,6 +13,7 @@
 #               6) http://trac.handbrake.fr/browser/trunk/libhb/stream.c
 #               7) http://ieeexplore.ieee.org/stamp/stamp.jsp?arnumber=04560141
 #               8) http://www.w6rz.net/xport.zip
+#               9) https://en.wikipedia.org/wiki/Program-specific_information
 #
 # Notes:        Variable names containing underlines are the same as in ref 1.
 #
@@ -31,9 +32,9 @@ use strict;
 use vars qw($VERSION);
 use Image::ExifTool qw(:DataAccess :Utils);
 
-$VERSION = '1.18';
+$VERSION = '1.22';
 
-# program map table "stream_type" lookup (ref 6/1)
+# program map table "stream_type" lookup (ref 6/1/9)
 my %streamType = (
     0x00 => 'Reserved',
     0x01 => 'MPEG-1 Video',
@@ -56,8 +57,22 @@ my %streamType = (
     0x12 => 'MPEG-4 generic',
     0x13 => 'ISO 14496-1 SL-packetized',
     0x14 => 'ISO 13818-6 Synchronized Download Protocol',
-  # 0x15-0x7F => 'ISO 13818-1 Reserved',
-    0x1b => 'H.264 Video',
+    0x15 => 'Packetized metadata',
+    0x16 => 'Sectioned metadata',
+    0x17 => 'ISO/IEC 13818-6 DSM CC Data Carousel metadata',
+    0x18 => 'ISO/IEC 13818-6 DSM CC Object Carousel metadata',
+    0x19 => 'ISO/IEC 13818-6 Synchronized Download Protocol metadata',
+    0x1a => 'ISO/IEC 13818-11 IPMP',
+    0x1b => 'H.264 (AVC) Video',
+    0x1c => 'ISO/IEC 14496-3 (MPEG-4 raw audio)',
+    0x1d => 'ISO/IEC 14496-17 (MPEG-4 text)',
+    0x1e => 'ISO/IEC 23002-3 (MPEG-4 auxiliary video)',
+    0x1f => 'ISO/IEC 14496-10 SVC (MPEG-4 AVC sub-bitstream)',
+    0x20 => 'ISO/IEC 14496-10 MVC (MPEG-4 AVC sub-bitstream)',
+    0x21 => 'ITU-T Rec. T.800 and ISO/IEC 15444 (JPEG 2000 video)',
+    0x24 => 'H.265 (HEVC) Video', #PH
+    0x42 => 'Chinese Video Standard',
+    0x7f => 'ISO/IEC 13818-11 IPMP (DRM)',
     0x80 => 'DigiCipher II Video',
     0x81 => 'A52/AC-3 Audio',
     0x82 => 'HDMV DTS Audio',
@@ -67,6 +82,7 @@ my %streamType = (
     0x86 => 'DTS-HD Audio',
     0x87 => 'E-AC-3 Audio',
     0x8a => 'DTS Audio',
+    0x90 => 'PGS Audio', #https://www.avsforum.com/threads/bass-eq-for-filtered-movies.2995212/page-399
     0x91 => 'A52b/AC-3 Audio',
     0x92 => 'DVD_SPU vls Subtitle',
     0x94 => 'SDDS Audio',
@@ -111,6 +127,8 @@ my %noSyntax = (
     0xff => 1, # program_stream_directory
 );
 
+my $knotsToKph = 1.852;     # knots --> km/h
+
 # information extracted from the MPEG-2 transport stream
 %Image::ExifTool::M2TS::Main = (
     GROUPS => { 2 => 'Video' },
@@ -141,6 +159,7 @@ my %noSyntax = (
     # the following tags are for documentation purposes only
     _AC3  => { SubDirectory => { TagTable => 'Image::ExifTool::M2TS::AC3' } },
     _H264 => { SubDirectory => { TagTable => 'Image::ExifTool::H264::Main' } },
+    _MISB => { SubDirectory => { TagTable => 'Image::ExifTool::MISB::Main' } },
 );
 
 # information extracted from AC-3 audio streams
@@ -262,7 +281,7 @@ sub ParseAC3Descriptor($$)
 
 #------------------------------------------------------------------------------
 # Parse PID stream data
-# Inputs: 0) Exiftool ref, 1) PID number, 2) PID type, 3) PID name, 4) data ref
+# Inputs: 0) ExifTool ref, 1) PID number, 2) PID type, 3) PID name, 4) data ref
 # Returns: 0=stream parsed OK,
 #          1=stream parsed but we want to parse more of these,
 #          -1=can't parse yet because we don't know the type
@@ -274,7 +293,7 @@ sub ParsePID($$$$$)
     my $verbose = $et->Options('Verbose');
     if ($verbose > 1) {
         my $out = $et->Options('TextOut');
-        printf $out "Parsing stream 0x%.4x (%s)\n", $pid, $pidName;
+        printf $out "Parsing stream 0x%.4x (%s) %d bytes\n", $pid, $pidName, length($$dataPt);
         $et->VerboseDump($dataPt);
     }
     my $more = 0;
@@ -299,6 +318,126 @@ sub ParsePID($$$$$)
     } elsif ($type == 0x81 or $type == 0x87 or $type == 0x91) {
         # AC-3 audio
         ParseAC3Audio($et, $dataPt);
+    } elsif ($type == 0x15) {
+        # packetized metadata (look for MISB code starting after 5-byte header)
+        if ($$dataPt =~ /^.{5}\x06\x0e\x2b\x34/s) {
+            $more = Image::ExifTool::MISB::ParseMISB($et, $dataPt, GetTagTable('Image::ExifTool::MISB::Main'));
+            if (not $$et{OPTIONS}{ExtractEmbedded}) {
+                $more = 0;  # extract from only the first packet unless ExtractEmbedded is used
+            } elsif ($$et{OPTIONS}{ExtractEmbedded} > 2) {
+                $more = 1;  # read past unknown 0x15 packets if ExtractEmbedded > 2
+            }
+        }
+    } elsif ($type < 0) {
+        if ($$dataPt =~ /^(.{164})?(.{24})A[NS][EW]/s) {
+            # (Blueskysea B4K, Novatek NT96670)
+            # 0000: 01 00 ff 00 30 31 32 33 34 35 37 38 61 62 63 64 [....01234578abcd]
+            # 0010: 65 66 67 0a 00 00 00 00 00 00 00 00 00 00 00 00 [efg.............]
+            # 0020: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 [................]
+            # 0030: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 [................]
+            # 0040: 00 00 00 00 30 31 32 33 34 35 37 38 71 77 65 72 [....01234578qwer]
+            # 0050: 74 79 75 69 6f 70 0a 00 00 00 00 00 00 00 00 00 [tyuiop..........]
+            # 0060: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 [................]
+            # 0070: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 [................]
+            # 0080: 00 00 00 00 63 38 61 61 32 35 63 66 34 35 65 65 [....c8aa25cf45ee]
+            # 0090: 61 39 65 32 34 34 32 66 61 65 62 35 65 30 39 39 [a9e2442faeb5e099]
+            # 00a0: 30 37 64 34 15 00 00 00 10 00 00 00 1b 00 00 00 [07d4............]
+            # 00b0: 15 00 00 00 01 00 00 00 09 00 00 00 41 4e 57 00 [............ANW.]
+            # 00c0: 82 9a 57 45 98 b2 00 46 66 66 e4 41 d7 e3 14 43 [..WE...Fff.A...C]
+            # 00d0: 01 00 02 00 03 00 04 00 05 00 06 00             [............]
+            # (Viofo A119V3)
+            # 0000: 08 00 00 00 07 00 00 00 18 00 00 00 15 00 00 00 [................]
+            # 0010: 03 00 00 00 0b 00 00 00 41 4e 45 00 01 f2 ac 45 [........ANE....E]
+            # 0020: 2d 7f 6e 45 b8 1e 97 41 d7 23 46 43 00 00 00 00 [-.nE...A.#FC....]
+            # pad with dummy header and parse with existing FreeGPS code (minimum 92 bytes)
+            my $dat = ("\0" x 16) . substr($$dataPt, length($1 || '')) . ("\0" x 20);
+            my $tbl = GetTagTable('Image::ExifTool::QuickTime::Stream');
+            Image::ExifTool::QuickTime::ProcessFreeGPS($et, { DataPt => \$dat }, $tbl);
+            $more = 1;
+        } elsif ($$dataPt =~ /^A([NS])([EW])\0/s) {
+            # INNOVV TS video (same format is INNOVV MP4)
+            SetByteOrder('II');
+            my $tagTbl = GetTagTable('Image::ExifTool::QuickTime::Stream');
+            while ($$dataPt =~ /(A[NS][EW]\0.{28})/g) {
+                my $dat = $1;
+                my $lat = abs(GetFloat(\$dat, 4)); # (abs just to be safe)
+                my $lon = abs(GetFloat(\$dat, 8)); # (abs just to be safe)
+                my $spd = GetFloat(\$dat, 12) * $knotsToKph;
+                my $trk = GetFloat(\$dat, 16);
+                my @acc = unpack('x20V3', $dat);
+                map { $_ = $_ - 4294967296 if $_ >= 0x80000000 } @acc;
+                Image::ExifTool::QuickTime::ConvertLatLon($lat, $lon);
+                $$et{DOC_NUM} = ++$$et{DOC_COUNT};
+                $et->HandleTag($tagTbl, GPSLatitude  => abs($lat) * (substr($dat,1,1) eq 'S' ? -1 : 1));
+                $et->HandleTag($tagTbl, GPSLongitude => abs($lon) * (substr($dat,2,1) eq 'W' ? -1 : 1));
+                $et->HandleTag($tagTbl, GPSSpeed     => $spd);
+                $et->HandleTag($tagTbl, GPSSpeedRef  => 'K');
+                $et->HandleTag($tagTbl, GPSTrack     => $trk);
+                $et->HandleTag($tagTbl, GPSTrackRef  => 'T');
+                $et->HandleTag($tagTbl, Accelerometer => "@acc");
+            }
+            SetByteOrder('MM');
+            $more = 1;
+        } elsif ($$dataPt =~ /^\$(GPSINFO|GSNRINFO),/) {
+            # $GPSINFO,0x0004,2021.08.09 13:27:36,2341.54561,12031.70135,8.0,51,153,0,0,\x0d
+            # $GSNRINFO,0.01,0.04,0.25\0
+            $$dataPt =~ tr/\x0d/\x0a/;
+            $$dataPt =~ tr/\0//d;
+            my $tagTbl = GetTagTable('Image::ExifTool::QuickTime::Stream');
+            my @lines = split /\x0a/, $$dataPt;
+            my ($line, $lastTime);
+            foreach $line (@lines) {
+                if ($line =~ /^\$GPSINFO/) {
+                    my @a = split /,/, $lines[0];
+                    next unless @a > 7;
+                    # ignore duplicate fixes
+                    next if $lastTime and $a[2] eq $lastTime;
+                    $lastTime = $a[2];
+                    $$et{DOC_NUM} = ++$$et{DOC_COUNT};
+                    $a[2] =~ tr/./:/;
+                    # (untested, and probably doesn't work for S/W hemispheres)
+                    my ($lat, $lon) = @a[3,4];
+                    Image::ExifTool::QuickTime::ConvertLatLon($lat, $lon);
+                    # $a[0] - flags? values: '0x0001','0x0004','0x0008','0x0010'
+                    $et->HandleTag($tagTbl, GPSDateTime  => $a[2]);
+                    $et->HandleTag($tagTbl, GPSLatitude  => $lat);
+                    $et->HandleTag($tagTbl, GPSLongitude => $lon);
+                    $et->HandleTag($tagTbl, GPSSpeed     => $a[5]);
+                    $et->HandleTag($tagTbl, GPSSpeedRef  => 'K');
+                    # $a[6] - values: 48-60
+                    $et->HandleTag($tagTbl, GPSTrack     => $a[7]);
+                    $et->HandleTag($tagTbl, GPSTrackRef  => 'T');
+                    # #a[8,9] - always 0
+                } elsif ($line =~ /^\$GSNRINFO/) {
+                    my @a = split /,/, $line;
+                    shift @a;
+                    $et->HandleTag($tagTbl, Accelerometer => "@a");
+                }
+            }
+            $more = 1;
+        } elsif ($$dataPt =~ /^.{44}A\0{3}.{4}([NS])\0{3}.{4}([EW])\0{3}/s and length($$dataPt) >= 84) {
+            #forum11320
+            SetByteOrder('II');
+            my $tagTbl = GetTagTable('Image::ExifTool::QuickTime::Stream');
+            my $lat = abs(GetFloat($dataPt, 48)); # (abs just to be safe)
+            my $lon = abs(GetFloat($dataPt, 56)); # (abs just to be safe)
+            my $spd = GetFloat($dataPt, 64);
+            my $trk = GetFloat($dataPt, 68);
+            $et->WarnOnce('GPSLatitude/Longitude encryption is not yet known, so these will be wrong');
+            $$et{DOC_NUM} = ++$$et{DOC_COUNT};
+            my @date = unpack('x32V3x28V3', $$dataPt);
+            $date[3] += 2000;
+            $et->HandleTag($tagTbl, GPSDateTime  => sprintf('%.4d:%.2d:%.2d %.2d:%.2d:%.2d', @date[3..5,0..2]));
+            $et->HandleTag($tagTbl, GPSLatitude  => abs($lat) * ($1 eq 'S' ? -1 : 1));
+            $et->HandleTag($tagTbl, GPSLongitude => abs($lon) * ($2 eq 'W' ? -1 : 1));
+            $et->HandleTag($tagTbl, GPSSpeed     => $spd);
+            $et->HandleTag($tagTbl, GPSSpeedRef  => 'K');
+            $et->HandleTag($tagTbl, GPSTrack     => $trk);
+            $et->HandleTag($tagTbl, GPSTrackRef  => 'T');
+            SetByteOrder('MM');
+            $more = 1;
+        }
+        delete $$et{DOC_NUM};
     }
     return $more;
 }
@@ -312,7 +451,7 @@ sub ProcessM2TS($$)
     my ($et, $dirInfo) = @_;
     my $raf = $$dirInfo{RAF};
     my ($buff, $pLen, $upkPrefix, $j, $fileType, $eof);
-    my (%pmt, %pidType, %data, %sectLen);
+    my (%pmt, %pidType, %data, %sectLen, %packLen, %fromStart);
     my ($startTime, $endTime, $fwdTime, $backScan, $maxBack);
     my $verbose = $et->Options('Verbose');
     my $out = $et->Options('TextOut');
@@ -350,7 +489,22 @@ sub ProcessM2TS($$)
     );
     my %didPID = ( 1 => 0, 2 => 0, 0x1fff => 0 );
     my %needPID = ( 0 => 1 );       # lookup for stream PID's that we still need to parse
+    # PID's that may contain GPS info
+    my %gpsPID = (
+        0x0300 => 1,    # Novatek INNOVV
+        0x01e4 => 1,    # vsys a6l dashcam
+    );
     my $pEnd = 0;
+
+    # scan entire file for GPS programs if ExtractEmbedded option is 3 or higher
+    # (some dashcams write these programs but don't include it in the PMT)
+    if (($et->Options('ExtractEmbedded') || 0) > 2) {
+        foreach (keys %gpsPID) {
+            $needPID{$_} = 1;
+            $pidType{$_} = -1;
+            $pidName{$_} ='unregistered dashcam GPS';
+        }
+    }
 
     # parse packets from MPEG-2 Transport Stream
     for (;;) {
@@ -421,12 +575,11 @@ sub ProcessM2TS($$)
         my $adaptation_field_exists      = $prefix & 0x00000020;
         my $payload_data_exists          = $prefix & 0x00000010;
       # my $continuity_counter           = $prefix & 0x0000000f;
-
         if ($verbose > 1) {
             my $i = ($raf->Tell() - length($buff) + $pEnd) / $pLen - 1;
             print  $out "Transport packet $i:\n";
             $et->VerboseDump(\$buff, Len => $pLen, Addr => $i * $pLen, Start => $pos - $prePos);
-            my $str = $pidName{$pid} ? " ($pidName{$pid})" : '';
+            my $str = $pidName{$pid} ? " ($pidName{$pid})" : ' <not in Program Map Table!>';
             printf $out "  Timecode:   0x%.4x\n", Get32u(\$buff, $pos - $prePos) if $pLen == 192;
             printf $out "  Packet ID:  0x%.4x$str\n", $pid;
             printf $out "  Start Flag: %s\n", $payload_unit_start_indicator ? 'Yes' : 'No';
@@ -482,6 +635,7 @@ sub ProcessM2TS($$)
                 $buf2 = $data{$pid};
                 $pos = 0;
                 delete $data{$pid};
+                delete $fromStart{$pid};
                 delete $sectLen{$pid};
             }
             my $slen = length($buf2);   # section length
@@ -608,6 +762,7 @@ sub ProcessM2TS($$)
                     my $more = ParsePID($et, $pid, $pidType{$pid}, $pidName{$pid}, \$data{$pid});
                     # start fresh even if we couldn't process this PID yet
                     delete $data{$pid};
+                    delete $fromStart{$pid};
                     unless ($more) {
                         delete $needPID{$pid};
                         $didPID{$pid} = 1;
@@ -621,8 +776,8 @@ sub ProcessM2TS($$)
                 my $start_code = Get32u(\$buff, $pos);
                 next unless ($start_code & 0xffffff00) == 0x00000100;
                 my $stream_id = $start_code & 0xff;
+                my $pes_packet_length = Get16u(\$buff, $pos + 4);
                 if ($verbose > 1) {
-                    my $pes_packet_length = Get16u(\$buff, $pos + 4);
                     printf $out "  Stream ID:  0x%.2x\n", $stream_id;
                     print  $out "  Packet Len: $pes_packet_length\n";
                 }
@@ -638,18 +793,42 @@ sub ProcessM2TS($$)
                     next if $pos >= $pEnd;
                 }
                 $data{$pid} = substr($buff, $pos, $pEnd-$pos);
+                # set flag that we read this payload from the start
+                $fromStart{$pid} = 1;
+                # save the packet length
+                if ($pes_packet_length > 8) {
+                    $packLen{$pid} = $pes_packet_length - 8; # (where are the 8 extra bytes? - PH)
+                } else {
+                    delete $packLen{$pid};
+                }
             } else {
-                next unless defined $data{$pid};
+                unless (defined $data{$pid}) {
+                    # (vsys a6l dashcam GPS record doesn't have a start indicator)
+                    next unless $gpsPID{$pid};
+                    $data{$pid} = '';
+                }
                 # accumulate data for each elementary stream
                 $data{$pid} .= substr($buff, $pos, $pEnd-$pos);
             }
             # save only the first 256 bytes of most streams, except for
-            # unknown or H.264 streams where we save 1 kB
-            my $saveLen = (not $pidType{$pid} or $pidType{$pid} == 0x1b) ? 1024 : 256;
+            # unknown, H.264 or metadata streams where we save up to 1 kB
+            my $saveLen;
+            if (not $pidType{$pid} or $pidType{$pid} == 0x1b) {
+                $saveLen = 1024;
+            } elsif ($pidType{$pid} == 0x15) {
+                # use 1024 or actual size of metadata packet if smaller
+                $saveLen = 1024;
+                $saveLen = $packLen{$pid} if defined $packLen{$pid} and $saveLen > $packLen{$pid};
+            } else {
+                $saveLen = 256;
+            }
             if (length($data{$pid}) >= $saveLen) {
                 my $more = ParsePID($et, $pid, $pidType{$pid}, $pidName{$pid}, \$data{$pid});
                 next if $more < 0;  # wait for program map table (hopefully not too long)
+                # don't stop parsing if we weren't successful and may have missed the start
+                $more = 1 if not $more and not $fromStart{$pid};
                 delete $data{$pid};
+                delete $fromStart{$pid};
                 $more and $needPID{$pid} = -1, next; # parse more of these
                 delete $needPID{$pid};
                 $didPID{$pid} = 1;
@@ -714,7 +893,7 @@ video.
 
 =head1 AUTHOR
 
-Copyright 2003-2020, Phil Harvey (philharvey66 at gmail.com)
+Copyright 2003-2022, Phil Harvey (philharvey66 at gmail.com)
 
 This library is free software; you can redistribute it and/or modify it
 under the same terms as Perl itself.

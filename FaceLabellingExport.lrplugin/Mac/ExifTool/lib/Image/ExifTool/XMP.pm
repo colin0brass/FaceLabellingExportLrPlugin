@@ -25,7 +25,8 @@
 #               10) http://www.adobe.com/devnet/xmp/pdfs/XMPSpecificationPart2.pdf (Oct 2008)
 #               11) http://www.extensis.com/en/support/kb_article.jsp?articleNumber=6102211
 #               12) http://www.cipa.jp/std/documents/e/DC-010-2012_E.pdf
-#               13) http://www.cipa.jp/std/documents/e/DC-010-2017_E.pdf
+#               13) http://www.cipa.jp/std/documents/e/DC-010-2017_E.pdf (changed to
+#                   http://www.cipa.jp/std/documents/e/DC-X010-2017.pdf)
 #
 # Notes:      - Property qualifiers are handled as if they were separate
 #               properties (with no associated namespace).
@@ -49,13 +50,13 @@ use Image::ExifTool::Exif;
 use Image::ExifTool::GPS;
 require Exporter;
 
-$VERSION = '3.33';
+$VERSION = '3.54';
 @ISA = qw(Exporter);
 @EXPORT_OK = qw(EscapeXML UnescapeXML);
 
 sub ProcessXMP($$;$);
 sub WriteXMP($$;$);
-sub CheckXMP($$$);
+sub CheckXMP($$$;$);
 sub ParseXMPElement($$$;$$$$);
 sub DecodeBase64($);
 sub EncodeBase64($;$);
@@ -69,6 +70,13 @@ sub FormatXMPDate($);
 sub ConvertRational($);
 sub ConvertRationalList($);
 sub WriteGSpherical($$$);
+
+# standard path locations for XMP in major file types
+my %stdPath = (
+    JPEG => 'JPEG-APP1-XMP',
+    TIFF => 'TIFF-IFD0-XMP',
+    PSD => 'PSD-XMP',
+);
 
 # lookup for translating to ExifTool namespaces (and family 1 group names)
 %stdXlatNS = (
@@ -120,6 +128,8 @@ my %xmpNS = (
     stRef     => 'http://ns.adobe.com/xap/1.0/sType/ResourceRef#',
     stVer     => 'http://ns.adobe.com/xap/1.0/sType/Version#',
     stMfs     => 'http://ns.adobe.com/xap/1.0/sType/ManifestItem#',
+    stCamera  => 'http://ns.adobe.com/photoshop/1.0/camera-profile',
+    crlcp     => 'http://ns.adobe.com/camera-raw-embedded-lens-profile/1.0/',
     tiff      => 'http://ns.adobe.com/tiff/1.0/',
    'x'        => 'adobe:ns:meta/',
     xmpG      => 'http://ns.adobe.com/xap/1.0/g/',
@@ -147,7 +157,7 @@ my %xmpNS = (
     DICOM     => 'http://ns.adobe.com/DICOM/',
    'drone-dji'=> 'http://www.dji.com/drone-dji/1.0/',
     svg       => 'http://www.w3.org/2000/svg',
-    et        => 'http://ns.exiftool.ca/1.0/',
+    et        => 'http://ns.exiftool.org/1.0/',
 #
 # namespaces defined in XMP2.pl:
 #
@@ -184,10 +194,13 @@ my %xmpNS = (
     GettyImagesGIFT => 'http://xmp.gettyimages.com/gift/1.0/',
     LImage    => 'http://ns.leiainc.com/photos/1.0/image/',
     Profile   => 'http://ns.google.com/photos/dd/1.0/profile/',
+    sdc       => 'http://ns.nikon.com/sdc/1.0/',
+    ast       => 'http://ns.nikon.com/asteroid/1.0/',
+    nine      => 'http://ns.nikon.com/nine/1.0/',
 );
 
 # build reverse namespace lookup
-my %uri2ns = ( 'http://ns.exiftool.org/1.0/' => 'et' ); # (allow exiftool.org as well as exiftool.ca)
+my %uri2ns = ( 'http://ns.exiftool.ca/1.0/' => 'et' ); # (allow exiftool.ca as well as exiftool.org)
 {
     my $ns;
     foreach $ns (keys %nsURI) {
@@ -200,13 +213,13 @@ my %uri2ns = ( 'http://ns.exiftool.org/1.0/' => 'et' ); # (allow exiftool.org as
     ValueConv    => 'Image::ExifTool::GPS::ToDegrees($val, 1)',
     ValueConvInv => 'Image::ExifTool::GPS::ToDMS($self, $val, 2, "N")',
     PrintConv    => 'Image::ExifTool::GPS::ToDMS($self, $val, 1, "N")',
-    PrintConvInv => 'Image::ExifTool::GPS::ToDegrees($val, 1)',
+    PrintConvInv => 'Image::ExifTool::GPS::ToDegrees($val, 1, "lat")',
 );
 %longConv = (
     ValueConv    => 'Image::ExifTool::GPS::ToDegrees($val, 1)',
     ValueConvInv => 'Image::ExifTool::GPS::ToDMS($self, $val, 2, "E")',
     PrintConv    => 'Image::ExifTool::GPS::ToDMS($self, $val, 1, "E")',
-    PrintConvInv => 'Image::ExifTool::GPS::ToDegrees($val, 1)',
+    PrintConvInv => 'Image::ExifTool::GPS::ToDegrees($val, 1, "lon")',
 );
 %dateTimeInfo = (
     # NOTE: Do NOT put "Groups" here because Groups hash must not be common!
@@ -428,9 +441,38 @@ my %sOECF = (
     Names       => { List => 'Seq' },
     Values      => { List => 'Seq', Writable => 'rational' },
 );
-
+my %sAreaModels = (
+    STRUCT_NAME => 'AreaModels',
+    NAMESPACE   => 'crs',
+    ColorRangeMaskAreaSampleInfo => { FlatName => 'ColorSampleInfo' },
+    AreaComponents => { FlatName => 'Components', List => 'Seq' },
+);
+my %sCorrRangeMask = (
+    STRUCT_NAME => 'CorrRangeMask',
+    NAMESPACE   => 'crs',
+    NOTES => 'Called CorrectionRangeMask by the spec.',
+    Version     => { },
+    Type        => { },
+    ColorAmount => { Writable => 'real' },
+    LumMin      => { Writable => 'real' },
+    LumMax      => { Writable => 'real' },
+    LumFeather  => { Writable => 'real' },
+    DepthMin    => { Writable => 'real' },
+    DepthMax    => { Writable => 'real' },
+    DepthFeather=> { Writable => 'real' },
+    # new in LR 11.0
+    Invert      => { Writable => 'boolean' },
+    SampleType  => { Writable => 'integer' },
+    AreaModels  => {
+        List => 'Seq',
+        Struct => \%sAreaModels,
+    },
+    LumRange    => { },
+    LuminanceDepthSampleInfo => { },
+);
 # new LR2 crs structures (PH)
-my %sCorrectionMask = (
+my %sCorrectionMask;
+%sCorrectionMask = (
     STRUCT_NAME => 'CorrectionMask',
     NAMESPACE   => 'crs',
     # disable List behaviour of flattened Gradient/PaintBasedCorrections
@@ -465,6 +507,26 @@ my %sCorrectionMask = (
     Alpha        => { Writable => 'real', List => 0 },
     CenterValue  => { Writable => 'real', List => 0 },
     PerimeterValue=>{ Writable => 'real', List => 0 },
+    # new in LR 11.0 MaskGroupBasedCorrections
+    MaskActive   => { Writable => 'boolean', List => 0 },
+    MaskName     => { List => 0 },
+    MaskBlendMode=> { Writable => 'integer', List => 0 },
+    MaskInverted => { Writable => 'boolean', List => 0 },
+    MaskSyncID   => { List => 0 },
+    MaskVersion  => { List => 0 },
+    MaskSubType  => { List => 0 },
+    ReferencePoint => { List => 0  },
+    InputDigest  => { List => 0 },
+    MaskDigest   => { List => 0 },
+    WholeImageArea => { List => 0 },
+    Origin       => { List => 0 },
+    Masks        => { Struct => \%sCorrectionMask, NoSubStruct => 1 },
+    CorrectionRangeMask => {
+        Name => 'CorrRangeMask',
+        Notes => 'called CorrectionRangeMask by the spec',
+        FlatName => 'Range',
+        Struct => \%sCorrRangeMask,
+    },
 );
 my %sCorrection = (
     STRUCT_NAME => 'Correction',
@@ -478,8 +540,8 @@ my %sCorrection = (
     LocalClarity     => { FlatName => 'Clarity',    Writable => 'real', List => 0 },
     LocalSharpness   => { FlatName => 'Sharpness',  Writable => 'real', List => 0 },
     LocalBrightness  => { FlatName => 'Brightness', Writable => 'real', List => 0 },
-    LocalToningHue   => { FlatName => 'Hue',        Writable => 'real', List => 0 },
-    LocalToningSaturation => { FlatName => 'Saturation',        Writable => 'real', List => 0 },
+    LocalToningHue   => { FlatName => 'ToningHue',  Writable => 'real', List => 0 },
+    LocalToningSaturation => { FlatName => 'ToningSaturation',  Writable => 'real', List => 0 },
     LocalExposure2012     => { FlatName => 'Exposure2012',      Writable => 'real', List => 0 },
     LocalContrast2012     => { FlatName => 'Contrast2012',      Writable => 'real', List => 0 },
     LocalHighlights2012   => { FlatName => 'Highlights2012',    Writable => 'real', List => 0 },
@@ -490,11 +552,25 @@ my %sCorrection = (
     LocalDefringe    => { FlatName => 'Defringe',   Writable => 'real', List => 0 },
     LocalTemperature => { FlatName => 'Temperature',Writable => 'real', List => 0 },
     LocalTint        => { FlatName => 'Tint',       Writable => 'real', List => 0 },
+    LocalHue         => { FlatName => 'Hue',        Writable => 'real', List => 0 },
+    LocalWhites2012  => { FlatName => 'Whites2012', Writable => 'real', List => 0 },
+    LocalBlacks2012  => { FlatName => 'Blacks2012', Writable => 'real', List => 0 },
+    LocalDehaze      => { FlatName => 'Dehaze', Writable => 'real', List => 0 },
+    LocalTexture     => { FlatName => 'Texture', Writable => 'real', List => 0 },
+    # new in LR 11.0
+    CorrectionRangeMask => {
+        Name => 'CorrRangeMask',
+        Notes => 'called CorrectionRangeMask by the spec',
+        FlatName => 'RangeMask',
+        Struct => \%sCorrRangeMask,
+    },
     CorrectionMasks  => {
         FlatName => 'Mask',
         Struct => \%sCorrectionMask,
         List => 'Seq',
     },
+    CorrectionName => { },
+    CorrectionSyncID => { },
 );
 my %sRetouchArea = (
     STRUCT_NAME => 'RetouchArea',
@@ -512,6 +588,30 @@ my %sRetouchArea = (
         Struct => \%sCorrectionMask,
         List => 'Seq',
     },
+);
+my %sMapInfo = (
+    STRUCT_NAME => 'MapInfo',
+    NAMESPACE   => 'crs',
+    NOTES => q{
+        Called RangeMaskMapInfo by the specification, the same as the containing
+        structure.
+    },
+    RGBMin => { },
+    RGBMax => { },
+    LabMin => { },
+    LabMax => { },
+    LumEq  => { List => 'Seq' },
+);
+my %sRangeMask = (
+    STRUCT_NAME => 'RangeMask',
+    NAMESPACE   => 'crs',
+    NOTES => q{
+        This structure is actually called RangeMaskMapInfo, but it only contains one
+        element which is a RangeMaskMapInfo structure (Yes, really!).  So these are
+        renamed to RangeMask and MapInfo respectively to avoid confusion and
+        redundancy in the tag names.
+    },
+    RangeMaskMapInfo => { FlatName => 'MapInfo', Struct => \%sMapInfo },
 );
 
 # main XMP tag table (tag ID's are used for the family 1 group names)
@@ -783,6 +883,18 @@ my %sRetouchArea = (
         Name => 'Device',
         SubDirectory => { TagTable => 'Image::ExifTool::XMP::Device' },
     },
+    sdc => {
+        Name => 'sdc',
+        SubDirectory => { TagTable => 'Image::ExifTool::Nikon::sdc' },
+    },
+    ast => {
+        Name => 'ast',
+        SubDirectory => { TagTable => 'Image::ExifTool::Nikon::ast' },
+    },
+    nine => {
+        Name => 'nine',
+        SubDirectory => { TagTable => 'Image::ExifTool::Nikon::nine' },
+    },
 );
 
 # hack to allow XML containing Dublin Core metadata to be handled like XMP (eg. EPUB - see ZIP.pm)
@@ -889,6 +1001,7 @@ my %sRetouchArea = (
     ModifyDate  => { Groups => { 2 => 'Time' }, %dateTimeInfo, Priority => 0 },
     Nickname    => { },
     Rating      => { Writable => 'real', Notes => 'a value from 0 to 5, or -1 for "rejected"' },
+    RatingPercent=>{ Writable => 'real', Avoid => 1, Notes => 'non-standard' },
     Thumbnails  => {
         FlatName => 'Thumbnail',
         Struct => \%sThumbnail,
@@ -1144,7 +1257,7 @@ my %sPantryItem = (
             LayerText => { },
         },
     },
-    TransmissionReference   => { },
+    TransmissionReference => { Notes => 'Now used as a job identifier' },
     Urgency         => {
         Writable => 'integer',
         Notes => 'should be in the range 1-8 to conform with the XMP spec',
@@ -1162,6 +1275,41 @@ my %sPantryItem = (
         },
     },
     EmbeddedXMPDigest => { },   #PH (LR5)
+    CameraProfiles => { #PH (2022-10-11)
+        List => 'Seq',
+        Struct => {
+            NAMESPACE   => 'stCamera',
+            STRUCT_NAME => 'Camera',
+            Author              => { },
+            Make                => { },
+            Model               => { },
+            UniqueCameraModel   => { },
+            CameraRawProfile    => { Writable => 'boolean' },
+            AutoScale           => { Writable => 'boolean' },
+            Lens                => { },
+            CameraPrettyName    => { },
+            LensPrettyName      => { },
+            ProfileName         => { },
+            SensorFormatFactor  => { Writable => 'real' },
+            FocalLength         => { Writable => 'real' },
+            FocusDistance       => { Writable => 'real' },
+            ApertureValue       => { Writable => 'real' },
+            PerspectiveModel    => {
+                Namespace       => 'crlcp',
+                Struct => {
+                    NAMESPACE   => 'stCamera',
+                    STRUCT_NAME => 'PerspectiveModel',
+                    Version              => { },
+                    ImageXCenter         => { Writable => 'real' },
+                    ImageYCenter         => { Writable => 'real' },
+                    ScaleFactor          => { Writable => 'real' },
+                    RadialDistortParam1  => { Writable => 'real' },
+                    RadialDistortParam2  => { Writable => 'real' },
+                    RadialDistortParam3  => { Writable => 'real' },
+                },
+            },
+        },
+    },
 );
 
 # Photoshop Camera Raw namespace properties (crs) - (ref 8,PH)
@@ -1289,11 +1437,11 @@ my %sPantryItem = (
     SharpenDetail               => { Writable => 'integer' },
     SharpenEdgeMasking          => { Writable => 'integer' },
     SharpenRadius               => { Writable => 'real' },
-    SplitToningBalance          => { Writable => 'integer' },
-    SplitToningHighlightHue     => { Writable => 'integer' },
-    SplitToningHighlightSaturation => { Writable => 'integer' },
-    SplitToningShadowHue        => { Writable => 'integer' },
-    SplitToningShadowSaturation => { Writable => 'integer' },
+    SplitToningBalance          => { Writable => 'integer', Notes => 'also used for newer ColorGrade settings' },
+    SplitToningHighlightHue     => { Writable => 'integer', Notes => 'also used for newer ColorGrade settings' },
+    SplitToningHighlightSaturation => { Writable => 'integer', Notes => 'also used for newer ColorGrade settings' },
+    SplitToningShadowHue        => { Writable => 'integer', Notes => 'also used for newer ColorGrade settings' },
+    SplitToningShadowSaturation => { Writable => 'integer', Notes => 'also used for newer ColorGrade settings' },
     Vibrance                    => { Writable => 'integer' },
     # new tags written by LR 1.4 (not sure in what version they first appeared)
     GrayMixerRed                => { Writable => 'integer' },
@@ -1320,7 +1468,14 @@ my %sPantryItem = (
     PostCropVignetteMidpoint    => { Writable => 'integer' },
     PostCropVignetteFeather     => { Writable => 'integer' },
     PostCropVignetteRoundness   => { Writable => 'integer' },
-    PostCropVignetteStyle       => { Writable => 'integer' },
+    PostCropVignetteStyle       => {
+        Writable => 'integer',
+        PrintConv => { #forum14011
+            1 => 'Highlight Priority',
+            2 => 'Color Priority',
+            3 => 'Paint Overlay',
+        },
+    },
     # disable List behaviour of flattened Gradient/PaintBasedCorrections
     # because these are nested in lists and the flattened tags can't
     # do justice to this complex structure
@@ -1417,7 +1572,17 @@ my %sPantryItem = (
     },
     ColorNoiseReductionSmoothness       => { Writable => 'integer' },
     PerspectiveAspect                   => { Writable => 'integer' },
-    PerspectiveUpright                  => { Writable => 'integer' },
+    PerspectiveUpright                  => {
+        Writable => 'integer',
+        PrintConv => { #forum14012
+            0 => 'Off',     # Disable Upright
+            1 => 'Auto',    # Apply balanced perspective corrections
+            2 => 'Full',    # Apply level, horizontal, and vertical perspective corrections
+            3 => 'Level',   # Apply only level correction
+            4 => 'Vertical',# Apply level and vertical perspective corrections
+            5 => 'Guided',  # Draw two or more guides to customize perspective corrections
+        },
+    },
     RetouchAreas => {
         FlatName => 'RetouchArea',
         Struct => \%sRetouchArea,
@@ -1441,12 +1606,17 @@ my %sPantryItem = (
     UprightPreview                      => { Writable => 'boolean' },
     UprightTransformCount               => { Writable => 'integer' },
     UprightDependentDigest              => { },
+    UprightGuidedDependentDigest        => { },
     UprightTransform_0                  => { },
     UprightTransform_1                  => { },
     UprightTransform_2                  => { },
     UprightTransform_3                  => { },
     UprightTransform_4                  => { },
     UprightTransform_5                  => { },
+    UprightFourSegments_0               => { },
+    UprightFourSegments_1               => { },
+    UprightFourSegments_2               => { },
+    UprightFourSegments_3               => { },
     # more stuff seen in lens profile file (unknown source)
     What => { }, # (with value "LensProfileDefaultSettings")
     LensProfileMatchKeyExifMake         => { },
@@ -1482,11 +1652,31 @@ my %sPantryItem = (
         Struct => {
             STRUCT_NAME => 'Look',
             NAMESPACE   => 'crs',
-            Name   => { },
-            Amount => { },
-            Cluster=> { },
-            UUID   => { },
+            Name        => { },
+            Amount      => { },
+            Cluster     => { },
+            UUID        => { },
             SupportsMonochrome => { },
+            SupportsAmount     => { },
+            SupportsOutputReferred => { },
+            Copyright   => { },
+            Group       => { Writable => 'lang-alt' },
+            Parameters => {
+                Struct => {
+                    STRUCT_NAME => 'LookParms',
+                    NAMESPACE   => 'crs',
+                    Version         => { },
+                    ProcessVersion  => { },
+                    Clarity2012     => { },
+                    ConvertToGrayscale => { },
+                    CameraProfile   => { },
+                    LookTable       => { },
+                    ToneCurvePV2012 => { List => 'Seq' },
+                    ToneCurvePV2012Red   => { List => 'Seq' },
+                    ToneCurvePV2012Green => { List => 'Seq' },
+                    ToneCurvePV2012Blue  => { List => 'Seq' },
+                },
+            },
         }
     },
     # more again (ref forum11258)
@@ -1512,6 +1702,32 @@ my %sPantryItem = (
     SortName    => { Writable => 'lang-alt' },
     Group       => { Writable => 'lang-alt', Avoid => 1 },
     Description => { Writable => 'lang-alt', Avoid => 1 },
+    # new for DNG converter 13.0
+    LookName => { NotFlat => 1 }, # (grr... conflicts with "Name" element of "Look" struct!)
+    # new for Lightroom CC 2021 (ref forum11745)
+    ColorGradeMidtoneHue    => { Writable => 'integer' },
+    ColorGradeMidtoneSat    => { Writable => 'integer' },
+    ColorGradeShadowLum     => { Writable => 'integer' },
+    ColorGradeMidtoneLum    => { Writable => 'integer' },
+    ColorGradeHighlightLum  => { Writable => 'integer' },
+    ColorGradeBlending      => { Writable => 'integer' },
+    ColorGradeGlobalHue     => { Writable => 'integer' },
+    ColorGradeGlobalSat     => { Writable => 'integer' },
+    ColorGradeGlobalLum     => { Writable => 'integer' },
+    # new for Adobe Camera Raw 13 (ref forum11745)
+    LensProfileIsEmbedded   => { Writable => 'boolean'},
+    AutoToneDigest          => { },
+    AutoToneDigestNoSat     => { },
+    ToggleStyleDigest       => { },
+    ToggleStyleAmount       => { Writable => 'integer' },
+    # new for LightRoom 11.0
+    CompatibleVersion       => { },
+    MaskGroupBasedCorrections => {
+        FlatName => 'MaskGroupBasedCorr',
+        Struct => \%sCorrection,
+        List => 'Seq',
+    },
+    RangeMaskMapInfo => { Name => 'RangeMask', Struct => \%sRangeMask, FlatName => 'RangeMask' },
 );
 
 # Tiff namespace properties (tiff)
@@ -1603,7 +1819,7 @@ my %sPantryItem = (
     Software  => { },
     Artist    => { Groups => { 2 => 'Author' } },
     Copyright => { Groups => { 2 => 'Author' }, Writable => 'lang-alt' },
-    NativeDigest => { }, #PH
+    NativeDigest => { Avoid => 1 }, #PH
 );
 
 # Exif namespace properties (exif)
@@ -1951,6 +2167,11 @@ my %sPantryItem = (
         Groups => { 2 => 'Location' },
         Writable => 'integer',
         PrintConv => {
+            OTHER => sub {
+                my ($val, $inv) = @_;
+                return undef unless $inv and $val =~ /^([-+0-9])/;
+                return($1 eq '-' ? 1 : 0);
+            },
             0 => 'Above Sea Level',
             1 => 'Below Sea Level',
         },
@@ -1987,8 +2208,8 @@ my %sPantryItem = (
         Groups => { 2 => 'Location' },
         Writable => 'integer',
         PrintConv => {
-            2 => '2-Dimensional',
-            3 => '3-Dimensional',
+            2 => '2-Dimensional Measurement',
+            3 => '3-Dimensional Measurement',
         },
     },
     GPSDOP => { Groups => { 2 => 'Location' }, Writable => 'rational' },
@@ -2068,8 +2289,8 @@ my %sPantryItem = (
     NAMESPACE   => 'exifEX',
     PRIORITY => 0, # not as reliable as actual EXIF tags
     NOTES => q{
-        EXIF tags added by the EXIF 2.31 for XMP specification (see
-        L<http://www.cipa.jp/std/documents/e/DC-010-2017_E.pdf>).
+        EXIF tags added by the EXIF 2.32 for XMP specification (see
+        L<https://cipa.jp/std/documents/download_e.html?DC-010-2020_E>).
     },
     Gamma                       => { Writable => 'rational' },
     PhotographicSensitivity     => { Writable => 'integer' },
@@ -2221,7 +2442,7 @@ my %sPantryItem = (
         Priority => 0,
         # prevent this from getting set from a LensID that has been converted
         ValueConvInv => q{
-            warn "Expected one or more integer values" if $val =~ /[^\d ]/;
+            warn "Expected one or more integer values" if $val =~ /[^-\d ]/;
             return $val;
         },
     },
@@ -2233,6 +2454,13 @@ my %sPantryItem = (
     VignetteCorrectionAlreadyApplied    => { Writable => 'boolean' },
     LateralChromaticAberrationCorrectionAlreadyApplied => { Writable => 'boolean' },
     LensDistortInfo => { }, # (LR 7.5.1, 4 signed rational values)
+    NeutralDensityFactor => { }, # (LR 11.0 - rational value, but denominator seems significant)
+    # the following are ref forum13747
+    EnhanceDetailsAlreadyApplied    => { Writable => 'boolean' },
+    EnhanceDetailsVersion           => { }, # integer?
+    EnhanceSuperResolutionAlreadyApplied => { Writable => 'boolean' },
+    EnhanceSuperResolutionVersion   => { }, # integer?
+    EnhanceSuperResolutionScale     => { Writable => 'rational' },
 );
 
 # IPTC Core namespace properties (Iptc4xmpCore) (ref 4)
@@ -2274,6 +2502,10 @@ my %sPantryItem = (
     Location            => { Groups => { 2 => 'Location' } },
     Scene               => { Groups => { 2 => 'Other' }, List => 'Bag' },
     SubjectCode         => { Groups => { 2 => 'Other' }, List => 'Bag' },
+    # Copyright - have seen this in a sample (Jan 2021), but I think it is non-standard
+    # new IPTC Core 1.3 properties
+    AltTextAccessibility  => { Groups => { 2 => 'Other' }, Writable => 'lang-alt' },
+    ExtDescrAccessibility => { Groups => { 2 => 'Other' }, Writable => 'lang-alt' },
 );
 
 # Adobe Lightroom namespace properties (lr) (ref PH)
@@ -2285,6 +2517,7 @@ my %sPantryItem = (
     NOTES => 'Adobe Lightroom "lr" namespace tags.',
     privateRTKInfo => { },
     hierarchicalSubject => { List => 'Bag' },
+    weightedFlatSubject => { List => 'Bag' },
 );
 
 # Adobe Album namespace properties (album) (ref PH)
@@ -2452,7 +2685,7 @@ sub FullEscapeXML($)
     $str =~ s/([&><'"])/&$charName{$1};/sg; # escape necessary XML characters
     $str =~ s/\\/&#92;/sg;                  # escape backslashes too
     # then use C-escape sequences for invalid characters
-    if ($str =~ /[\0-\x1f]/ or IsUTF8(\$str) < 0) {
+    if ($str =~ /[\0-\x1f]/ or Image::ExifTool::IsUTF8(\$str) < 0) {
         $str =~ s/([\0-\x1f\x80-\xff])/sprintf("\\x%.2x",ord $1)/sge;
     }
     return $str;
@@ -2498,57 +2731,6 @@ sub UnescapeChar($$;$)
 }
 
 #------------------------------------------------------------------------------
-# Does a string contain valid UTF-8 characters?
-# Inputs: 0) string reference, 1) true to allow last character to be truncated
-# Returns: 0=regular ASCII, -1=invalid UTF-8, 1=valid UTF-8 with maximum 16-bit
-#          wide characters, 2=valid UTF-8 requiring 32-bit wide characters
-# Notes: Changes current string position
-# (see http://www.fileformat.info/info/unicode/utf8.htm for help understanding this)
-sub IsUTF8($;$)
-{
-    my ($strPt, $trunc) = @_;
-    pos($$strPt) = 0; # start at beginning of string
-    return 0 unless $$strPt =~ /([\x80-\xff])/g;
-    my $rtnVal = 1;
-    for (;;) {
-        my $ch = ord($1);
-        # minimum lead byte for 2-byte sequence is 0xc2 (overlong sequences
-        # not allowed), 0xf8-0xfd are restricted by RFC 3629 (no 5 or 6 byte
-        # sequences), and 0xfe and 0xff are not valid in UTF-8 strings
-        return -1 if $ch < 0xc2 or $ch >= 0xf8;
-        # determine number of bytes remaining in sequence
-        my $n;
-        if ($ch < 0xe0) {
-            $n = 1;
-        } elsif ($ch < 0xf0) {
-            $n = 2;
-        } else {
-            $n = 3;
-            # character code is greater than 0xffff if more than 2 extra bytes
-            # were required in the UTF-8 character
-            $rtnVal = 2;
-        }
-        my $pos = pos $$strPt;
-        unless ($$strPt =~ /\G([\x80-\xbf]{$n})/g) {
-            return $rtnVal if $trunc and $pos + $n > length $$strPt;
-            return -1;
-        }
-        # the following is ref https://www.cl.cam.ac.uk/%7Emgk25/ucs/utf8_check.c
-        if ($n == 2) {
-            return -1 if ($ch == 0xe0 and (ord($1) & 0xe0) == 0x80) or
-                         ($ch == 0xed and (ord($1) & 0xe0) == 0xa0) or
-                         ($ch == 0xef and ord($1) == 0xbf and
-                            (ord(substr $1, 1) & 0xfe) == 0xbe);
-        } else {
-            return -1 if ($ch == 0xf0 and (ord($1) & 0xf0) == 0x80) or
-                         ($ch == 0xf4 and ord($1) > 0x8f) or $ch > 0xf4;
-        }
-        last unless $$strPt =~ /([\x80-\xff])/g;
-    }
-    return $rtnVal;
-}
-
-#------------------------------------------------------------------------------
 # Fix malformed UTF8 (by replacing bad bytes with specified character)
 # Inputs: 0) string reference, 1) string to replace each bad byte,
 #         may be '' to delete bad bytes, or undef to use '?'
@@ -2562,7 +2744,7 @@ sub FixUTF8($;$)
         last unless $$strPt =~ /([\x80-\xff])/g;
         my $ch = ord($1);
         my $pos = pos($$strPt);
-        # (see comments in IsUTF8() above)
+        # (see comments in Image::ExifTool::IsUTF8())
         if ($ch >= 0xc2 and $ch < 0xf8) {
             my $n = $ch < 0xe0 ? 1 : ($ch < 0xf0 ? 2 : 3);
             if ($$strPt =~ /\G([\x80-\xbf]{$n})/g) {
@@ -2774,8 +2956,9 @@ sub AddFlattenedTags($;$$)
             if ($flatInfo) {
                 ref $flatInfo eq 'HASH' or warn("$flatInfo is not a HASH!\n"), next; # (to be safe)
                 # pre-defined flattened tags should have Flat flag set
-                if (not defined $$flatInfo{Flat} and $Image::ExifTool::debug) {
-                    warn "Missing Flat flag for $$flatInfo{Name}\n";
+                if (not defined $$flatInfo{Flat}) {
+                    next if $$flatInfo{NotFlat};
+                    warn "Missing Flat flag for $$flatInfo{Name}\n" if $Image::ExifTool::debug;
                 }
                 $$flatInfo{Flat} = 0;
                 # copy all missing entries from field information
@@ -3067,10 +3250,15 @@ sub FoundXMP($$$$;$)
         }
     }
 
-    if (not $ns and $$tagTablePtr{GROUPS}{0} ne 'XMP') {
-        # this is a simple XML table (no namespaces)
+    my $xmlGroups;
+    my $grp0 = $$tagTablePtr{GROUPS}{0};
+    if (not $ns and $grp0 ne 'XMP') {
         $tagID = $tag;
+    } elsif ($grp0 eq 'XML' and not $table) {
+        # this is an XML table (no namespace lookup)
+        $tagID = "$ns:$tag";
     } else {
+        $xmlGroups = 1 if $grp0 eq 'XML';
         # look up this tag in the appropriate table
         $table or $table = 'Image::ExifTool::XMP::other';
         $tagTablePtr = GetTagTable($table);
@@ -3185,8 +3373,14 @@ NoLoop:
             }
         }
         # generate a default tagInfo hash if necessary
-        $tagInfo or $tagInfo = { Name => $name, IsDefault => 1, Priority => 0 };
-
+        unless ($tagInfo) {
+            # shorten tag name if necessary
+            if ($$et{ShortenXmpTags}) {
+                my $shorten = $$et{ShortenXmpTags};
+                $name = &$shorten($name);
+            }
+            $tagInfo = { Name => $name, IsDefault => 1, Priority => 0 };
+        }
         # add tag Namespace entry for tags in variable-namespace tables
         $$tagInfo{Namespace} = $xns if $xns;
         if ($$et{curURI}{$ns} and $$et{curURI}{$ns} =~ m{^http://ns.exiftool.(?:ca|org)/(.*?)/(.*?)/}) {
@@ -3217,8 +3411,13 @@ NoLoop:
         #} elsif (grep / /, @$props) {
         #    $$tagInfo{List} = 1;
         }
+        # save property list for verbose "adding" message unless this tag already exists
+        $added = \@tagList unless $$tagTablePtr{$tagID};
+        # if this is an empty structure, we must add a Struct field
+        if (not length $val and $$attrs{'rdf:parseType'} and $$attrs{'rdf:parseType'} eq 'Resource') {
+            $$tagInfo{Struct} = { STRUCT_NAME => 'XMP Unknown' };
+        }
         AddTagToTable($tagTablePtr, $tagID, $tagInfo);
-        $added = 1;
         last;
     }
     # decode value if necessary (et:encoding was used before exiftool 7.71)
@@ -3262,6 +3461,13 @@ NoLoop:
         } else {
             $val = ConvertXMPDate($val, $new) if $new or $fmt eq 'date';
         }
+        if ($$et{XmpValidate} and $fmt and $fmt eq 'boolean' and $val!~/^True|False$/) {
+            if ($val =~ /^true|false$/) {
+                $et->WarnOnce("Boolean value for XMP-$ns:$$tagInfo{Name} should be capitalized",1);
+            } else {
+                $et->WarnOnce(qq(Boolean value for XMP-$ns:$$tagInfo{Name} should be "True" or "False"),1);
+            }
+        }
         # protect against large binary data in unknown tags
         $$tagInfo{Binary} = 1 if $new and length($val) > 65536;
     }
@@ -3269,15 +3475,48 @@ NoLoop:
     my $key = $et->FoundTag($tagInfo, $val) or return 0;
     # save original components of rational numbers (used when copying)
     $$et{RATIONAL}{$key} = $rational if defined $rational;
+    # save structure/list information if necessary
+    if (@structProps and (@structProps > 1 or defined $structProps[0][1]) and
+        not $$et{NO_STRUCT})
+    {
+        $$et{TAG_EXTRA}{$key}{Struct} = \@structProps;
+        $$et{IsStruct} = 1;
+    }
+    if ($xmlGroups) {
+        $et->SetGroup($key, 'XML', 0);
+        $et->SetGroup($key, "XML-$ns", 1);
+    } elsif ($ns and not $$tagInfo{StaticGroup1}) {
+        # set group1 dynamically according to the namespace
+        $et->SetGroup($key, "$$tagTablePtr{GROUPS}{0}-$ns");
+    }
+    if ($$et{OPTIONS}{Verbose}) {
+        if ($added) {
+            my $props;
+            if (@$added > 1) {
+                $$tagInfo{Flat} = 0;    # this is a flattened tag
+                my @props = map { $$_[0] } @$added;
+                $props = ' (' . join('/',@props) . ')';
+            } else {
+                $props = '';
+            }
+            my $g1 = $et->GetGroup($key, 1);
+            $et->VPrint(0, $$et{INDENT}, "[adding $g1:$tag]$props\n");
+        }
+        my $tagID = join('/',@$props);
+        $et->VerboseInfo($tagID, $tagInfo, Value => $rawVal || $val);
+    }
     # allow read-only subdirectories (eg. embedded base64 XMP/IPTC in NKSC files)
     if ($$tagInfo{SubDirectory} and not $$et{IsWriting}) {
         my $subdir = $$tagInfo{SubDirectory};
         my $dataPt = ref $$et{VALUE}{$key} ? $$et{VALUE}{$key} : \$$et{VALUE}{$key};
+        # decode if necessary (eg. Nikon XMP-ast:XMLPackets)
+        $dataPt = DecodeBase64($$dataPt) if $$tagInfo{Encoding} and $$tagInfo{Encoding} eq 'Base64';
         # process subdirectory information
         my %dirInfo = (
             DirName  => $$subdir{DirName} || $$tagInfo{Name},
             DataPt   => $dataPt,
             DirLen   => length $$dataPt,
+            IgnoreProp => $$subdir{IgnoreProp}, # (allow XML to ignore specified properties)
             IsExtended => 1, # (hack to avoid Duplicate warning for embedded XMP)
         );
         my $oldOrder = GetByteOrder();
@@ -3288,25 +3527,6 @@ NoLoop:
         $et->ProcessDirectory(\%dirInfo, $subTablePtr, $$subdir{ProcessProc});
         SetByteOrder($oldOrder);
         $$et{definedNS} = $oldNS;
-    }
-    # save structure/list information if necessary
-    if (@structProps and (@structProps > 1 or defined $structProps[0][1]) and
-        not $$et{NO_STRUCT})
-    {
-        $$et{TAG_EXTRA}{$key}{Struct} = \@structProps;
-        $$et{IsStruct} = 1;
-    }
-    if ($ns and not $$tagInfo{StaticGroup1}) {
-        # set group1 dynamically according to the namespace
-        $et->SetGroup($key, "$$tagTablePtr{GROUPS}{0}-$ns");
-    }
-    if ($$et{OPTIONS}{Verbose}) {
-        if ($added) {
-            my $g1 = $et->GetGroup($key, 1);
-            $et->VPrint(0, $$et{INDENT}, "[adding $g1:$tag]\n");
-        }
-        my $tagID = join('/',@$props);
-        $et->VerboseInfo($tagID, $tagInfo, Value => $rawVal || $val);
     }
     return 1;
 }
@@ -3399,6 +3619,17 @@ sub ParseXMPElement($$$;$$$$)
             $valEnd = $valStart;
         }
         $start = pos($$dataPt);         # start from here the next time around
+
+        # ignore specified XMP namespaces/properties
+        if ($$et{EXCL_XMP_LOOKUP} and not $isWriting and $prop =~ /^(.+):(.*)/) {
+            my ($ns, $nm) = (lc($stdXlatNS{$1} || $1), lc($2));
+            if ($$et{EXCL_XMP_LOOKUP}{"xmp-$ns:all"} or $$et{EXCL_XMP_LOOKUP}{"xmp-$ns:$nm"} or
+                $$et{EXCL_XMP_LOOKUP}{"xmp-all:$nm"})
+            {
+                ++$count;   # (pretend we found something so we don't store as a tag value)
+                next;
+            }
+        }
 
         # extract property attributes
         my ($parseResource, %attrs, @attrs);
@@ -3497,9 +3728,9 @@ sub ParseXMPElement($$$;$$$$)
             if ($nItems == 1000) {
                 my ($tg,$ns) = GetXMPTagID($propList);
                 if ($isWriting) {
-                    $et->Warn("Excessive number of items for $ns:$tg. Processing may be slow", 1);
+                    $et->WarnOnce("Excessive number of items for $ns:$tg. Processing may be slow", 1);
                 } elsif (not $$et{OPTIONS}{IgnoreMinorErrors}) {
-                    $et->Warn("Extracted only 1000 $ns:$tg items. Ignore minor errors to extract all", 2);
+                    $et->WarnOnce("Extracted only 1000 $ns:$tg items. Ignore minor errors to extract all", 2);
                     last;
                 }
             }
@@ -3521,7 +3752,11 @@ sub ParseXMPElement($$$;$$$$)
         } elsif ($prop eq 'rdf:Description') {
             # remove unnecessary rdf:Description elements since parseType='Resource'
             # is more efficient (also necessary to make property path consistent)
-            $parseResource = 1 if grep /^rdf:Description$/, @$propList;
+            if (grep /^rdf:Description$/, @$propList) {
+                $parseResource = 1;
+                # set parseType so we know this is a structure
+                $attrs{'rdf:parseType'} = 'Resource';
+            }
         } elsif ($prop eq 'xmp:xmpmeta') {
             # patch MicrosoftPhoto unconformity
             $prop = 'x:xmpmeta';
@@ -3560,6 +3795,11 @@ sub ParseXMPElement($$$;$$$$)
             if ($prop eq 'svg' or $prop eq 'metadata') {
                 # add svg namespace prefix if missing to ignore these entries in the tag name
                 $$propList[-1] = "svg:$prop";
+            }
+        } elsif ($$et{XmpIgnoreProps}) { # ignore specified properties for tag name
+            foreach (@{$$et{XmpIgnoreProps}}) {
+                last unless @$propList;
+                pop @$propList if $_ eq $$propList[0];
             }
         }
 
@@ -3685,6 +3925,7 @@ sub ParseXMPElement($$$;$$$$)
                 # (unless we already extracted shorthand values from this element)
                 if (length $val or not $shorthand) {
                     my $lastProp = $$propList[-1];
+                    $lastProp = '' unless defined $lastProp;
                     if (defined $nodeID) {
                         SaveBlankInfo($blankInfo, $propList, $val);
                     } elsif ($lastProp eq 'rdf:type' and $wasEmpty) {
@@ -3758,6 +3999,7 @@ sub ProcessXMP($$;$)
     my ($buff, $fmt, $hasXMP, $isXML, $isRDF, $isSVG);
     my $rtnVal = 0;
     my $bom = 0;
+    my $path = $et->MetadataPath();
 
     # namespaces and prefixes currently in effect while parsing the file,
     # and lookup to translate brain-dead-Microsoft-Photo-software prefixes
@@ -3775,11 +4017,7 @@ sub ProcessXMP($$;$)
         (($$dirInfo{DirName} || '') eq 'XMP' or $$et{FILE_TYPE} eq 'XMP'))
     {
         $$et{XmpValidate} = { } if $$et{OPTIONS}{Validate};
-        my $path = $et->MetadataPath();
-        my $nonStd;
-        if ($$et{FILE_TYPE} =~ /^(JPEG|TIFF|PSD)$/ and $path !~ /^(JPEG-APP1-XMP|TIFF-IFD0-XMP|PSD-XMP)$/) {
-            $nonStd = 1;
-        }
+        my $nonStd = ($stdPath{$$et{FILE_TYPE}} and $path ne $stdPath{$$et{FILE_TYPE}});
         if ($nonStd and $Image::ExifTool::MWG::strict) {
             $et->Warn("Ignored non-standard XMP at $path");
             return 1;
@@ -3858,7 +4096,7 @@ sub ProcessXMP($$;$)
                         } elsif ($1 eq 'REDXIF') {
                             $type = 'RMD';
                             $mime = 'application/xml';
-                        } else {
+                        } elsif ($1 ne 'fcpxml') { # Final Cut Pro XML
                             return 0;
                         }
                     } elsif ($buf2 =~ /<svg[\s>]/) {
@@ -3868,14 +4106,16 @@ sub ProcessXMP($$;$)
                     } elsif ($buf2 =~ /<plist[\s>]/) {
                         $type = 'PLIST';
                     }
-                    if ($isSVG and $$et{XMP_CAPTURE}) {
-                        $et->Error("ExifTool does not yet support writing of SVG images");
-                        return 0;
-                    }
                 }
                 $isXML = 1;
             } elsif ($2 eq '<rdf:RDF') {
                 $isRDF = 1;     # recognize XMP without x:xmpmeta element
+            } elsif ($2 eq '<svg') {
+                $isSVG = $isXML = 1;
+            }
+            if ($isSVG and $$et{XMP_CAPTURE}) {
+                $et->Error("ExifTool does not yet support writing of SVG images");
+                return 0;
             }
             if ($buff =~ /^\0\0/) {
                 $fmt = 'N';     # UTF-32 MM with or without BOM
@@ -3975,13 +4215,16 @@ sub ProcessXMP($$;$)
         $dirLen = $dataLen = length $$dataPt;
     }
 
-    # extract XMP as a block if specified
+    # extract XMP/XML as a block if specified
     my $blockName = $$dirInfo{BlockInfo} ? $$dirInfo{BlockInfo}{Name} : 'XMP';
+    my $blockExtract = $et->Options('BlockExtract');
     if (($$et{REQ_TAG_LOOKUP}{lc $blockName} or ($$et{TAGS_FROM_FILE} and
-        not $$et{EXCL_TAG_LOOKUP}{lc $blockName})) and ($$et{FileType} eq 'XMP' or
-        ($$dirInfo{DirName} and $$dirInfo{DirName} eq 'XMP')))
+        not $$et{EXCL_TAG_LOOKUP}{lc $blockName}) or $blockExtract) and
+        (($$et{FileType} eq 'XMP' and $blockName eq 'XMP') or
+        ($$dirInfo{DirName} and $$dirInfo{DirName} eq $blockName)))
     {
         $et->FoundTag($$dirInfo{BlockInfo} || 'XMP', substr($$dataPt, $dirStart, $dirLen));
+        return 1 if $blockExtract and $blockExtract > 1;
     }
 
     $tagTablePtr or $tagTablePtr = GetTagTable('Image::ExifTool::XMP::Main');
@@ -4035,6 +4278,13 @@ sub ProcessXMP($$;$)
             }
         }
         defined $fmt or $et->Warn('XMP character encoding error');
+    }
+    # warn if standard XMP is missing xpacket wrapper
+    if ($$et{XMP_NO_XPACKET} and $$et{OPTIONS}{Validate} and
+        $stdPath{$$et{FILE_TYPE}} and $path eq $stdPath{$$et{FILE_TYPE}} and
+        not $$dirInfo{IsExtended} and not $$et{DOC_NUM})
+    {
+        $et->Warn('XMP is missing xpacket wrapper', 1);
     }
     if ($fmt) {
         # trim if necessary to avoid converting non-UTF data
@@ -4141,7 +4391,7 @@ information.
 
 =head1 AUTHOR
 
-Copyright 2003-2020, Phil Harvey (philharvey66 at gmail.com)
+Copyright 2003-2022, Phil Harvey (philharvey66 at gmail.com)
 
 This library is free software; you can redistribute it and/or modify it
 under the same terms as Perl itself.

@@ -21,7 +21,7 @@ use vars qw($VERSION);
 use Image::ExifTool qw(:DataAccess :Utils);
 use Image::ExifTool::Exif;
 
-$VERSION = '1.25';
+$VERSION = '1.27';
 
 sub ProcessJpgFromRaw($$$);
 sub WriteJpgFromRaw($$$);
@@ -218,6 +218,7 @@ my %panasonicWhiteBalance = ( #forum9396
     0x30 => { Name => 'CropLeft',   Writable => 'int16u' },
     0x31 => { Name => 'CropBottom', Writable => 'int16u' },
     0x32 => { Name => 'CropRight',  Writable => 'int16u' },
+    # 0x44 - may contain another pointer to the raw data starting at byte 2 in this data (DC-GH6)
     0x10f => {
         Name => 'Make',
         Groups => { 2 => 'Camera' },
@@ -512,6 +513,7 @@ my %panasonicWhiteBalance = ( #forum9396
         # when format is int32u (S models), these values have been observed (ref IB):
         #  256 - Leica lens
         #  257 - Lumix lens
+        #  258 - ? (seen once)
     },
     0x1202 => { #IB
         Name => 'LensTypeModel',
@@ -531,14 +533,45 @@ my %panasonicWhiteBalance = ( #forum9396
         PrintConv => '"$val mm"',
         PrintConvInv => '$val=~s/\s*mm$//;$val',
     },
+    # 0x1300 - incident light value? (ref forum11395)
+    0x1301 => { #forum11395
+        Name => 'ApertureValue',
+        Writable => 'int16s',
+        Priority => 0,
+        ValueConv => '2 ** ($val / 512)',
+        ValueConvInv => '$val>0 ? 512*log($val)/log(2) : 0',
+        PrintConv => 'sprintf("%.1f",$val)',
+        PrintConvInv => '$val',
+    },
+    0x1302 => { #forum11395
+        Name => 'ShutterSpeedValue',
+        Writable => 'int16s',
+        Priority => 0,
+        ValueConv => 'abs($val/256)<100 ? 2**(-$val/256) : 0',
+        ValueConvInv => '$val>0 ? -256*log($val)/log(2) : -25600',
+        PrintConv => 'Image::ExifTool::Exif::PrintExposureTime($val)',
+        PrintConvInv => 'Image::ExifTool::Exif::ConvertFraction($val)',
+    },
+    0x1303 => { #forum11395
+        Name => 'SensitivityValue',
+        Writable => 'int16s',
+        ValueConv => '$val / 256',
+        ValueConvInv => 'int($val * 256)',
+    },
     0x1305 => { #forum9384
         Name => 'HighISOMode',
         Writable => 'int16u',
         RawConv => '$val || undef',
         PrintConv => { 1 => 'On', 2 => 'Off' },
     },
+    # 0x1306 EV for some models like the GX8 (forum11395)
     # 0x140b - scaled overall black level? (ref forum9281)
     # 0x1411 - scaled black level per channel difference (ref forum9281)
+    0x1412 => { #forum11397
+        Name => 'FacesDetected',
+        Writable => 'int8u',
+        PrintConv => { 0 => 'No', 1 => 'Yes' },
+    },
     # 0x2000 - WB tungsten=3, daylight=4 (ref forum9467)
     # 0x2009 - scaled black level per channel (ref forum9281)
     # 0x3000-0x310b - red/blue balances * 1024 (ref forum9467)
@@ -600,6 +633,8 @@ my %panasonicWhiteBalance = ( #forum9396
         Writable => 'int8u',
         PrintConv => \%Image::ExifTool::Exif::orientation,
     },
+    # 0x3504 = Tag 0x1301+0x1302-0x1303 (Bv = Av+Tv-Sv) (forum11395)
+    # 0x3505 - same as 0x1300 (forum11395)
     0x3600 => { #forum9396
         Name => 'WhiteBalanceDetected',
         Writable => 'int8u',
@@ -703,6 +738,8 @@ sub WriteDistortionInfo($$$)
 #  2 - value count
 #  3 - reference to list of original offset values
 #  4 - IFD format number
+#  5 - (pointer to StripOffsets value added by this PatchRawDataOffset routine)
+#  6 - flag set if this is a fixed offset (Panasonic GH6 fixed-offset hack)
 sub PatchRawDataOffset($$$)
 {
     my ($offsetInfo, $raf, $ifd) = @_;
@@ -711,15 +748,32 @@ sub PatchRawDataOffset($$$)
     my $rawDataOffset = $$offsetInfo{0x118};
     my $err;
     $err = 1 unless $ifd == 0;
-    $err = 1 unless $stripOffsets and $stripByteCounts and $$stripOffsets[2] == 1;
-    if ($rawDataOffset) {
+    if ($stripOffsets or $stripByteCounts) {
+        $err = 1 unless $stripOffsets and $stripByteCounts and $$stripOffsets[2] == 1;
+    } else {
+        # the DC-GH6 and DC-GH5M2 write RawDataOffset with no Strip tags, so we need
+        # to create fake StripByteCounts information for copying the data
+        if ($$offsetInfo{0x118}) { # (just to be safe)
+            $stripByteCounts = $$offsetInfo{0x117} = [ $PanasonicRaw::Main{0x117}, 0, 1, [ 0 ], 4 ];
+            # set flag so the offset will be fixed (GH6 hack, see https://exiftool.org/forum/index.php?topic=13861.0)
+            # (of course, fixing up the offset is now unnecessary, but continue to do this even
+            # though the fixup adjustment will be 0 because this allows us to delete the following
+            # line to remove the fix-offset restriction if Panasonic ever sees the light, but note
+            # that in this case we should investigate the purpose of the seemily-duplicate raw
+            # data offset contained within PanasonicRaw_0x0044)
+            $$offsetInfo{0x118}[6] = 1;
+        }
+    }
+    if ($rawDataOffset and not $err) {
         $err = 1 unless $$rawDataOffset[2] == 1;
-        $err = 1 unless $$stripOffsets[3][0] == 0xffffffff or $$stripByteCounts[3][0] == 0;
+        if ($stripOffsets) {
+            $err = 1 unless $$stripOffsets[3][0] == 0xffffffff or $$stripByteCounts[3][0] == 0;
+        }
     }
     $err and return 'Unsupported Panasonic/Leica RAW variant';
     if ($rawDataOffset) {
         # update StripOffsets along with this tag if it contains a reasonable value
-        unless ($$stripOffsets[3][0] == 0xffffffff) {
+        if ($stripOffsets and $$stripOffsets[3][0] != 0xffffffff) {
             # save pointer to StripOffsets value for updating later
             push @$rawDataOffset, $$stripOffsets[1];
         }
@@ -854,7 +908,7 @@ write meta information in Panasonic/Leica RAW, RW2 and RWL images.
 
 =head1 AUTHOR
 
-Copyright 2003-2020, Phil Harvey (philharvey66 at gmail.com)
+Copyright 2003-2022, Phil Harvey (philharvey66 at gmail.com)
 
 This library is free software; you can redistribute it and/or modify it
 under the same terms as Perl itself.

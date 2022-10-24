@@ -58,7 +58,7 @@ use Image::ExifTool::Exif;
 use Image::ExifTool::GPS;
 use Image::ExifTool::HP;
 
-$VERSION = '3.32';
+$VERSION = '3.40';
 
 sub CryptShutterCount($$);
 sub PrintFilter($$$);
@@ -171,7 +171,7 @@ sub DecodeAFPoints($$$$;$);
     '3 255.4' => 'Sigma DF EX Aspherical 28-70mm F2.8', #12
     '3 255.5' => 'Sigma AF Tele 400mm F5.6 Multi-coated', #JD
     '3 255.6' => 'Sigma 24-60mm F2.8 EX DG', #PH
-    '3 255.7' => 'Sigma 70-300mm F4-5.6 Macro', #JD
+    '3 255.7' => 'Sigma 70-300mm F4-5.6 Macro', #JD (also DG Macro, ref 27)
     '3 255.8' => 'Sigma 55-200mm F4-5.6 DC', #JD
     '3 255.9' => 'Sigma 18-50mm F2.8 EX DC', #JD (also Macro version - PH)
     '4 1' => 'smc PENTAX-FA SOFT 28mm F2.8',
@@ -322,6 +322,7 @@ sub DecodeAFPoints($$$$;$);
     '8 21' => 'Sigma 17-50mm F2.8 EX DC OS HSM', #26
     '8 22' => 'Sigma 85mm F1.4 EX DG HSM', #26
     '8 23' => 'Sigma 70-200mm F2.8 APO EX DG OS HSM', #27
+    '8 24' => 'Sigma 17-70mm F2.8-4 DC Macro OS HSM', #27
     '8 25' => 'Sigma 17-50mm F2.8 EX DC HSM', #Exiv2
     '8 27' => 'Sigma 18-200mm F3.5-6.3 II DC HSM', #27
     '8 28' => 'Sigma 18-250mm F3.5-6.3 DC Macro HSM', #27
@@ -338,6 +339,9 @@ sub DecodeAFPoints($$$$;$);
     '8 63' => 'HD PENTAX-D FA 15-30mm F2.8 ED SDM WR', #PH
     '8 64' => 'HD PENTAX-D FA* 50mm F1.4 SDM AW', #27
     '8 65' => 'HD PENTAX-D FA 70-210mm F4 ED SDM WR', #PH
+    '8 66' => 'HD PENTAX-D FA 85mm F1.4 ED SDM AW', #James O'Neill
+    '8 67' => 'HD PENTAX-D FA 21mm F2.4 ED Limited DC WR', #ChristianShulz
+    '8 195' => 'HD PENTAX DA* 16-50mm F2.8 ED PLM AW', #27
     '8 196' => 'HD PENTAX-DA* 11-18mm F2.8 ED DC AW', #29
     '8 197' => 'HD PENTAX-DA 55-300mm F4.5-6.3 ED PLM WR RE', #29
     '8 198' => 'smc PENTAX-DA L 18-50mm F4-5.6 DC WR RE', #29
@@ -546,6 +550,7 @@ my %pentaxModelID = (
     0x13222 => 'K-70', #29 (Ricoh)
     0x1322c => 'KP', #29 (Ricoh)
     0x13240 => 'K-1 Mark II', # (Ricoh)
+    0x13254 => 'K-3 Mark III', #IB (Ricoh)
     0x13290 => 'WG-70', # (Ricoh)
 );
 
@@ -2220,6 +2225,7 @@ my %binaryDataAttrs = (
             17 => '17 (K-70)', #29
             18 => '18 (KP)', #PH
             19 => '19 (GR III)', #PH
+            20 => '20 (K-3III)', #PH
         },
     },
     0x0067 => { #PH (K-5)
@@ -2452,6 +2458,7 @@ my %binaryDataAttrs = (
             '2 0' => 'Standard',
             '3 0' => 'Fast',
             # '1 108' - seen for GR III
+            # '3 84' - seen for K-3III
         },
     },
     0x007b => { #PH (K-5)
@@ -2595,8 +2602,9 @@ my %binaryDataAttrs = (
             },
         },
     },
-    0x0095 => { #31
+    0x0095 => [{ #31
         Name => 'SkinToneCorrection',
+        Condition => '$count == 2',
         Writable => 'int8s',
         Count => 2,
         PrintConv => {
@@ -2604,7 +2612,15 @@ my %binaryDataAttrs = (
             '1 1' => 'On (type 1)',
             '1 2' => 'On (type 2)',
         },
-    },
+    },{
+        Name => 'SkinToneCorrection',
+        Condition => '$count == 3',
+        Writable => 'int8s',
+        Count => 3,
+        PrintConv => {
+            '0 0 0' => 'Off',
+        },
+    }],
     0x0096 => { #31
         Name => 'ClarityControl',
         Writable => 'int8s',
@@ -2840,8 +2856,18 @@ my %binaryDataAttrs = (
         # High:     0000000238c0e960fde0f9203140f5a0fce0f1e031403f00e600fb00f7803760f120fc60ef403460
         # Very High:000000023d20e520fdc0f7203420f4c0fb60ee6036404400e120fae0f5403aa0f020fac0eb403a00
     },
-    # 0x021c - undef[18] (K-5)
-    # 0x021d - undef[18] (K-5)
+    0x021c => { #IB
+        Name => 'ColorMatrixA2',
+        Format => 'int16s',
+        Writable => 'undef',
+        Count => 9,
+    },
+    0x021d => { #IB
+        Name => 'ColorMatrixB2',
+        Format => 'int16s',
+        Writable => 'undef',
+        Count => 9,
+    },
     # 0x021e - undef[8] (K-5, Q)
     0x021f => { #JD
         Name => 'AFInfo',
@@ -2893,13 +2919,20 @@ my %binaryDataAttrs = (
         Writable => 'string',
         Notes => 'left blank by some cameras',
     },
-    0x022a => { #PH (K-5)
+    0x022a => [{ #PH (RICOH models (GR III))
+        Name => 'FilterInfo',
+        Condition => '$$self{Make} =~ /^RICOH/',
+        SubDirectory => {
+            TagTable => 'Image::ExifTool::Pentax::FilterInfo',
+            ByteOrder => 'LittleEndian',
+        },
+    },{ #PH (K-5)
         Name => 'FilterInfo',
         SubDirectory => {
             TagTable => 'Image::ExifTool::Pentax::FilterInfo',
             ByteOrder => 'BigEndian',
         },
-    },
+    }],
     0x022b => { #PH (K-5)
         Name => 'LevelInfo',
         SubDirectory => { TagTable => 'Image::ExifTool::Pentax::LevelInfo' },
@@ -6282,7 +6315,7 @@ tags, and everyone who helped contribute to the LensType values.
 
 =head1 AUTHOR
 
-Copyright 2003-2020, Phil Harvey (philharvey66 at gmail.com)
+Copyright 2003-2022, Phil Harvey (philharvey66 at gmail.com)
 
 This library is free software; you can redistribute it and/or modify it
 under the same terms as Perl itself.

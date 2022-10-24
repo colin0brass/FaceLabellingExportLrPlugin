@@ -2,7 +2,7 @@
 # After "make install" it should work as "perl t/PNG.t".
 
 BEGIN {
-    $| = 1; print "1..6\n"; $Image::ExifTool::configFile = '';
+    $| = 1; print "1..7\n"; $Image::ExifTool::configFile = '';
     require './t/TestLib.pm'; t::TestLib->import();
 }
 END {print "not ok 1\n" unless $loaded;}
@@ -19,7 +19,7 @@ my $testnum = 1;
 # test 2: Extract information from PNG.png
 {
     ++$testnum;
-    my $exifTool = new Image::ExifTool;
+    my $exifTool = Image::ExifTool->new;
     my $info = $exifTool->ImageInfo('t/images/PNG.png');
     print 'not ' unless check($exifTool, $info, $testname, $testnum);
     print "ok $testnum\n";
@@ -28,7 +28,7 @@ my $testnum = 1;
 # test 3: Write a bunch of new information to a PNG in memory
 {
     ++$testnum;
-    my $exifTool = new Image::ExifTool;
+    my $exifTool = Image::ExifTool->new;
     $exifTool->SetNewValuesFromFile('t/images/IPTC.jpg');
     $exifTool->SetNewValuesFromFile('t/images/XMP.jpg');
     $exifTool->SetNewValue('PNG:Comment');  # and delete a tag
@@ -54,7 +54,7 @@ my $testnum = 1;
 # test 4: Test group delete, alternate languages and special characters
 {
     ++$testnum;
-    my $exifTool = new Image::ExifTool;
+    my $exifTool = Image::ExifTool->new;
     $exifTool->Options(Charset => 'Latin');
     $exifTool->SetNewValue('PNG:*');
     $exifTool->SetNewValue('XMP:*');
@@ -77,7 +77,7 @@ my $testnum = 1;
 # test 5: Try moving XMP from after IDAT to before
 {
     ++$testnum;
-    my $exifTool = new Image::ExifTool;
+    my $exifTool = Image::ExifTool->new;
     my $image;  
     # delete all XMP then copy back again (should move to before IDAT)
     $exifTool->SetNewValue();
@@ -100,7 +100,7 @@ my $testnum = 1;
 # test 6: Write EXIF
 {
     ++$testnum;
-    my $exifTool = new Image::ExifTool;
+    my $exifTool = Image::ExifTool->new;
     $exifTool->SetNewValue('EXIF:Artist' => 'me');
     my $testfile = "t/${testname}_${testnum}_failed.png";
     unlink $testfile;
@@ -113,6 +113,29 @@ my $testnum = 1;
         print 'not ';
     }
     print "ok $testnum\n";
+}
+
+# test 7: Write ICC_Profile with a name
+{
+    ++$testnum;
+    my $skip = '';
+    if (eval 'require Compress::Zlib') {
+        my $exifTool = Image::ExifTool->new;
+        $exifTool->SetNewValuesFromFile('t/images/ICC_Profile.icc', 'ICC_Profile');
+        $exifTool->SetNewValue('PNG:ProfileName' => 'Adobe RGB (1998)');
+        my $testfile = "t/${testname}_${testnum}_failed.png";
+        unlink $testfile;
+        my $rtnVal = $exifTool->WriteInfo('t/images/PNG.png', $testfile);
+        my $info = $exifTool->ImageInfo($testfile, 'ProfileName', 'ProfileCMMType');
+        if (check($exifTool, $info, $testname, $testnum)) {
+            unlink $testfile;
+        } else {
+            print 'not ';
+        }
+    } else {
+        $skip = ' # skip Requires Compress::Zlib';
+    }
+    print "ok $testnum$skip\n";
 }
 
 # end

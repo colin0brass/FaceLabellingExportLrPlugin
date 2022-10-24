@@ -2,7 +2,7 @@
 # After "make install" it should work as "perl t/QuickTime.t".
 
 BEGIN {
-    $| = 1; print "1..15\n"; $Image::ExifTool::configFile = '';
+    $| = 1; print "1..17\n"; $Image::ExifTool::configFile = '';
     require './t/TestLib.pm'; t::TestLib->import();
 }
 END {print "not ok 1\n" unless $loaded;}
@@ -21,7 +21,7 @@ my $testnum = 1;
     my $ext;
     foreach $ext (qw(mov m4a)) {
         ++$testnum;
-        my $exifTool = new Image::ExifTool;
+        my $exifTool = Image::ExifTool->new;
         my $info = $exifTool->ImageInfo("t/images/QuickTime.$ext");
         print 'not ' unless check($exifTool, $info, $testname, $testnum);
         print "ok $testnum\n";
@@ -31,7 +31,7 @@ my $testnum = 1;
 # tests 4-5: Try writing XMP to the different file formats
 {
     my $ext;
-    my $exifTool = new Image::ExifTool;
+    my $exifTool = Image::ExifTool->new;
     $exifTool->Options(SavePath => 1); # to save group 5 names
     $exifTool->SetNewValue('XMP:Title' => 'x');
     $exifTool->SetNewValue('TrackCreateDate' => '2000:01:02 03:04:05');
@@ -58,8 +58,8 @@ my $testnum = 1;
 # test 6: Write video rotation
 {
     ++$testnum;
-    my $exifTool = new Image::ExifTool;
-    $exifTool->SetNewValue('Rotation' => '270');
+    my $exifTool = Image::ExifTool->new;
+    $exifTool->SetNewValue('Rotation' => '270', Protected => 1);
     my $testfile = "t/${testname}_${testnum}_failed.mov";
     unlink $testfile;
     my $rtnVal = $exifTool->WriteInfo('t/images/QuickTime.mov', $testfile);
@@ -81,6 +81,7 @@ my $testnum = 1;
         ['UserData:Genre' => 'rock'],
         ['UserData:Album' => 'albumA'],
         ['ItemList:Album' => 'albumB'],
+        ['ItemList:ID-albm:Album' => 'albumC'],
         ['QuickTime:Comment-fra-FR' => 'fr comment'],
         ['Keys:Director' => 'director'],
         ['Keys:CameraDirection' => '90'],
@@ -94,7 +95,7 @@ my $testnum = 1;
 # test 8-9: Delete everything then add back some tags in one step
 {
     my $ext;
-    my $exifTool = new Image::ExifTool;
+    my $exifTool = Image::ExifTool->new;
     my @writeInfo = (
         ['all' => undef],
         ['artist' => 'me'],
@@ -114,7 +115,7 @@ my $testnum = 1;
     ++$testnum;
     my $testfile = "t/${testname}_${testnum}a_failed.mov";
     unlink $testfile;
-    my $exifTool = new Image::ExifTool;
+    my $exifTool = Image::ExifTool->new;
     $exifTool->Options(QuickTimeHandler => 1);
     $exifTool->SetNewValue('all' => undef);
     writeInfo($exifTool, 't/images/QuickTime.mov', $testfile);
@@ -133,7 +134,7 @@ my $testnum = 1;
     ++$testnum;
     my $testfile = "t/${testname}_${testnum}_failed.heic";
     unlink $testfile;
-    my $exifTool = new Image::ExifTool;
+    my $exifTool = Image::ExifTool->new;
     $exifTool->Options(Composite => 0);
     $exifTool->SetNewValue('XMP-dc:Title' => 'a title');
     writeInfo($exifTool, 't/images/QuickTime.heic', $testfile);
@@ -194,7 +195,7 @@ my $testnum = 1;
 # test 15: Test WriteMode option with QuickTime tags
 {
     ++$testnum;
-    my $exifTool = new Image::ExifTool;
+    my $exifTool = Image::ExifTool->new;
     $exifTool->Options(WriteMode => 'c');
     $exifTool->SetNewValue('ItemList:Composer' => 'WRONG');
     $exifTool->SetNewValue('ItemList:Author' => 'aut');
@@ -209,6 +210,30 @@ my $testnum = 1;
     } else {
         print 'not ';
     }
+    print "ok $testnum\n";
+}
+
+# test 16: Write some Microsoft Xtra tags
+{
+    ++$testnum;
+    my @writeInfo = (
+        ['Microsoft:Director' => 'dir1'],
+        ['Microsoft:Director' => 'dir2'],
+        ['Microsoft:SharedUserRating' => 75],
+    );
+    my @extract = ('Microsoft:all');
+    print 'not ' unless writeCheck(\@writeInfo, $testname, $testnum, 't/images/QuickTime.mov', \@extract);
+    print "ok $testnum\n";
+}
+
+# test 17: Write some 3gp tags
+{
+    ++$testnum;
+    my @writeInfo = (
+        ['UserData:LocationInformation' => 'test comment role=Shooting lat=1.2 lon=-2.3 alt=100 body=earth notes=a note'],
+        ['UserData:Rating' => 'entity=ABCD criteria=1234 a rating'],
+    );
+    print 'not ' unless writeCheck(\@writeInfo, $testname, $testnum, 't/images/QuickTime.mov', 1);
     print "ok $testnum\n";
 }
 

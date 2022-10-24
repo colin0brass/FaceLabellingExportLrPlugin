@@ -37,7 +37,7 @@ use vars qw($VERSION %leicaLensTypes);
 use Image::ExifTool qw(:DataAccess :Utils);
 use Image::ExifTool::Exif;
 
-$VERSION = '2.10';
+$VERSION = '2.18';
 
 sub ProcessLeicaLEIC($$$);
 sub WhiteBalanceConv($;$$);
@@ -259,6 +259,7 @@ my %shootingMode = (
     88 => 'Clear Sports Shot', #18
     89 => 'Monochrome', #18
     90 => 'Creative Control', #18
+    92 => 'Handheld Night Shot', #forum11523
 );
 
 %Image::ExifTool::Panasonic::Main = (
@@ -448,7 +449,7 @@ my %shootingMode = (
             same as the number printed on the camera body
         },
         PrintConv => q{
-            return $val unless $val=~/^([A-Z]\d{2})(\d{2})(\d{2})(\d{2})(\d{4})/;
+            return $val unless $val=~/^([A-Z][0-9A-Z]{2})(\d{2})(\d{2})(\d{2})(\d{4})/;
             my $yr = $2 + ($2 < 70 ? 2000 : 1900);
             return "($1) $yr:$3:$4 no. $5";
         },
@@ -458,7 +459,15 @@ my %shootingMode = (
         Name => 'PanasonicExifVersion',
         Writable => 'undef',
     },
-    # 0x27 - values: 0 (LZ6,FX10K)
+    0x27 => {
+        Name => 'VideoFrameRate',
+        Writable => 'int16u',
+        Notes => 'only valid for older models',
+        PrintConv => {
+            OTHER => sub { shift },
+            0 => 'n/a',
+        },
+    },
     0x28 => {
         Name => 'ColorEffect',
         Writable => 'int16u',
@@ -534,7 +543,11 @@ my %shootingMode = (
     0x2c => [
         {
             Name => 'ContrastMode',
-            Condition => '$$self{Model} !~ /^DMC-(FX10|G1|L1|L10|LC80|GF\d+|G2|TZ10|ZS7)$/',
+            Condition => q{
+                $$self{Model} !~ /^DMC-(FX10|G1|L1|L10|LC80|GF\d+|G2|TZ10|ZS7)$/ and
+                # tested for DC-GH6, but rule out other DC- models just in case - PH
+                $$self{Model} !~ /^DC-/
+            },
             Flags => 'PrintHex',
             Writable => 'int16u',
             Notes => q{
@@ -662,12 +675,13 @@ my %shootingMode = (
         Name => 'SelfTimer',
         Writable => 'int16u',
         PrintConv => {
+            0 => 'Off (0)', #forum11529
             1 => 'Off',
             2 => '10 s',
             3 => '2 s',
             4 => '10 s / 3 pictures', #17
             258 => '2 s after shutter pressed', #forum11194
-            266 => '10 s', #forum11194
+            266 => '10 s after shutter pressed', #forum11194
             778 => '3 photos after 10 s', #forum11194
         },
     },
@@ -736,8 +750,20 @@ my %shootingMode = (
         PrintConvInv => '$val =~ /(\d+)/ ? $1 : $val',
     },
     # 0x37 - values: 0,1,2 (LZ6, 0 for movie preview); 257 (FX10K); 0,256 (TZ5, 0 for movie preview)
-    # 0x38 - values: 0,1,2 (LZ6, same as 0x37); 1,2 (FX10K); 0,256 (TZ5, 0 for movie preview)
-    #        - changes with noise reduction for DC-S1
+    #        --> may indicate battery power (forum11388)
+    0x38 => { #forum11388
+        Name => 'BatteryLevel',
+        Writable => 'int16u',
+        PrintConv => {
+            1 => 'Full',
+            2 => 'Medium',
+            3 => 'Low',
+            4 => 'Near Empty',
+            7 => 'Near Full',
+            8 => 'Medium Low',
+            256 => 'n/a',
+        },
+    },
     0x39 => { #7 (L1/L10)
         Name => 'Contrast',
         Format => 'int16s',
@@ -1107,7 +1133,10 @@ my %shootingMode = (
             8 => 'Cinelike D', #forum11194
             9 => 'Cinelike V', #forum11194
             11 => 'L. Monochrome', #forum11194
+            12 => 'Like709', #forum14033
             15 => 'L. Monochrome D', #forum11194
+            17 => 'V-Log', #forum14033
+            18 => 'Cinelike D2', #forum14033
         },
     },
     0x8a => { #18
@@ -1233,8 +1262,9 @@ my %shootingMode = (
         Writable => 'rational64u',
         Format => 'int32u',
         PrintConv => {
-            '0 0' => 'Expressive',
-            # '0 1' => have seen this for XS1 (PH)
+            # '0 0' => 'Expressive', #forum11194
+            '0 0' => 'Off', #forum14033 (GH6)
+            '0 1' => 'Expressive', #forum14033 (GH6) (have also seen this for XS1)
             '0 2' => 'Retro',
             '0 4' => 'High Key',
             '0 8' => 'Sepia',
@@ -1299,7 +1329,7 @@ my %shootingMode = (
     0xb3 => { #forum11194
         Name => 'VideoBurstResolution',
         Writable => 'int16u',
-        PrintConv => { 0 => 'Off or 4K', 4 => '6K' },
+        PrintConv => { 1 => 'Off or 4K', 4 => '6K' },
     },
     0xb4 => { #forum9429
         Name => 'MultiExposure',
@@ -1324,6 +1354,7 @@ my %shootingMode = (
             0x108 => 'Loop Recording',
             0x810 => '6K Burst',
             0x820 => '6K Burst (Start/Stop)',
+            0x408 => 'Focus Stacking', #forum11563
             0x1001 => 'High Resolution Mode',
         },
     },
@@ -1353,6 +1384,14 @@ my %shootingMode = (
         Name => 'VideoPreburst',
         Writable => 'int16u',
         PrintConv => { 0 => 'No', 1 => '4K or 6K' },
+    },
+    0xca => { #forum11459
+        Name => 'SensorType',
+        Writable => 'int16u',
+        PrintConv => {
+            0 => 'Multi-aspect',
+            1 => 'Standard',
+        },
     },
     # Note: LensTypeMake and LensTypeModel are combined into a Composite LensType tag
     # defined in Olympus.pm which has the same values as Olympus:LensType
@@ -1391,6 +1430,27 @@ my %shootingMode = (
     0xd6 => { #PH (DC-S1)
         Name => 'NoiseReductionStrength',
         Writable => 'rational64s',
+    },
+    0xe4 => { #IB
+        Name => 'LensTypeModel',
+        Condition => '$format eq "int16u"',
+        Writable => 'int16u',
+        RawConv => q{
+            return undef unless $val;
+            require Image::ExifTool::Olympus; # (to load Composite LensID)
+            return $val;
+        },
+        ValueConv => '$_=sprintf("%.4x",$val); s/(..)(..)/$2 $1/; $_',
+        ValueConvInv => '$val =~ s/(..) (..)/$2$1/; hex($val)',
+    },
+    0xe8 => { #PH (DC-GH6)
+        Name => 'MinimumISO',
+        Writable => 'int32u',
+    },
+    0xee => { #PH (DC-GH6)
+        Name => 'DynamicRangeBoost',
+        Writable => 'int16u',
+        PrintConv => { 0 => 'Off', 1 => 'On' },
     },
     0x0e00 => {
         Name => 'PrintIM',
@@ -2087,6 +2147,7 @@ my %shootingMode = (
         Name => 'UserProfile',
         Writable => 'string',
     },
+    # 0x357 int32u - 0=DNG, 3162=JPG (ref 23)
     0x359 => { #23
         Name => 'ISOSelected',
         Writable => 'int32s',
@@ -2103,7 +2164,19 @@ my %shootingMode = (
         PrintConv => 'sprintf("%.1f", $val)',
         PrintConvInv => '$val',
     },
-    # 0x357 int32u - 0=DNG, 3162=JPG (ref 23)
+    0x035b => { #IB
+        Name => 'CorrelatedColorTemp', # (in Kelvin)
+        Writable => 'int16u',
+    },
+    0x035c => { #IB
+        Name => 'ColorTint', # (same units as Adobe is using)
+        Writable => 'int16s',
+    },
+    0x035d => { #IB
+        Name => 'WhitePoint', # (x/y)
+        Writable => 'rational64u',
+        Count => 2,
+    },
 );
 
 # Type 2 tags (ref PH)
@@ -2416,6 +2489,15 @@ my %shootingMode = (
             Start => 12,
         },
     },
+    0x200080 => { # (GH6)
+        Name => 'ExifData',
+        Condition => '$$valPt =~ /^\xff\xd8\xff\xe1..Exif\0\0/s',
+        SubDirectory => {
+            TagTable => 'Image::ExifTool::Exif::Main',
+            ProcessProc => \&Image::ExifTool::ProcessTIFF,
+            Start => 12,
+        },
+    },
 );
 
 # Panasonic Composite tags
@@ -2440,7 +2522,8 @@ my %shootingMode = (
                 # AdvancedSceneType=5 for automatic mode iA (ref 19)
                 if ($prt) {
                     return $prt if $v[1] == 1;
-                    return "$prt (intelligent auto)" if $v[1] == 5;
+                    return "$prt (intelligent auto)" if $v[1] == 5; #forum11523
+                    return "$prt (intelligent auto plus)" if $v[1] == 7; #forum11523
                     return "$prt ($v[1])";
                 }
                 return "Unknown ($val)";
@@ -2463,10 +2546,19 @@ my %shootingMode = (
             '9 3' => 'Objects', #(FZ28)
             '9 4' => 'Creative Macro', #(FZ28)
             #'9 5' - ? (GF3)
+            '18 1' => 'High Sensitivity', #forum11523 (TZ5)
+            '20 1' => 'Fireworks', #forum11523 (TZ5)
             '21 2' => 'Illuminations', #(FZ28)
             '21 4' => 'Creative Night Scenery', #(FZ28)
             #'21 5' - ? (LX3)
+            '26 1' => 'High-speed Burst (shot 1)', #forum11523 (TZ5)
+            '27 1' => 'High-speed Burst (shot 2)', #forum11523 (TZ5)
+            '29 1' => 'Snow', #forum11523 (TZ5)
+            '30 1' => 'Starry Sky', #forum11523 (TZ5)
+            '31 1' => 'Beach', #forum11523 (TZ5)
+            '36 1' => 'High-speed Burst (shot 3)', #forum11523 (TZ5)
             #'37 5' - ? (various)
+            '39 1' => 'Aerial Photo / Underwater / Multi-aspect', #forum11523 (TZ5)
             '45 2' => 'Cinema', #(GF2)
             '45 7' => 'Expressive', #(GF1,GF2)
             '45 8' => 'Retro', #(GF1,GF2)
@@ -2771,7 +2863,7 @@ Panasonic and Leica maker notes in EXIF information.
 
 =head1 AUTHOR
 
-Copyright 2003-2020, Phil Harvey (philharvey66 at gmail.com)
+Copyright 2003-2022, Phil Harvey (philharvey66 at gmail.com)
 
 This library is free software; you can redistribute it and/or modify it
 under the same terms as Perl itself.
