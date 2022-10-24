@@ -116,7 +116,7 @@ end
 --------------------------------------------------------------------------------
 -- ExifTool add Face Region
 
-function FLEExifToolAPI.addFaceRegion(handle, personTag, photoFilename, replace)
+function FLEExifToolAPI.addFaceRegion(handle, personTag, photoFilename, replace, thumb_file_with_path)
     local success = true -- initial value
 
     local join_operator = '+=' -- default is to append
@@ -126,12 +126,34 @@ function FLEExifToolAPI.addFaceRegion(handle, personTag, photoFilename, replace)
         join_operator = '+=' -- append
     end
 
-    local exif_command = string.format('-regionlist%s{Area={H=%.1f,W=%.1f,X=%.1f,Y=%.1f,Unit=%s},Name=\'%s\',Type=Face}',
+    -- substitute spaces in name strings with "^^" to avoid \n substitution in exifTool_send_command
+    personTag.name = string.gsub(tostring(personTag.name,''), "%s", "@@")
+
+    local exif_command = string.format('-regionlist%s{Area={H=%.1f,W=%.1f,X=%.1f,Y=%.1f,Unit=%s},Name=%s,Type=Face}',
                                         join_operator,
                                         personTag.h, personTag.w,
                                         personTag.x, personTag.y,
                                         personTag.unit,
                                         personTag.name)
+
+    exif_command = exif_command .. string.format(' -PersonInImage%s%s',
+                                        join_operator,
+                                        personTag.name)
+
+    exif_command = exif_command .. string.format(' -Subject%s%s',
+                                        join_operator,
+                                        personTag.name)
+
+    exif_command = exif_command .. string.format(' -WeightedFlatSubject%s%s',
+                                        join_operator,
+                                        personTag.name)
+
+    if not utils.isnil(thumb_file_with_path) then
+        exif_command = exif_command .. string.format(' -ThumbnailImage<=%s',
+                                        thumb_file_with_path)
+        exif_command = exif_command .. string.format(' -PhotoshopThumbnail<=%s',
+                                        thumb_file_with_path)
+    end
 
 	success = _exifTool_send_command(handle, exif_command)
 	success = success and _exifTool_send_filename(handle, photoFilename)
@@ -294,7 +316,10 @@ end
 
 function _exifTool_send_command(handle, command)
     -- commands, parameters & options all separated by \n
-    local command_lines = string.gsub(command,"%s", "\n") .. "\n"
+    local command_lines = string.gsub(command, "%s", "\n") .. "\n"
+--    command = string.gsub(command, "%s", "\n")
+    -- restore spaces in name strings (previously substituted with ^^ to avoid \n)
+    command_lines = string.gsub(command_lines, "@@", " ")
     return _exifTool_insert_command_lines(handle, command_lines)
 end
 

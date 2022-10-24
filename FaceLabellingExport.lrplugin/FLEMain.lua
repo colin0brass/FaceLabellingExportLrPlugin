@@ -206,16 +206,26 @@ function FLEMain.export_thumbnail_images(people, photoDimension, photoPath)
             command_string = "-write " .. '"' .. output_file_with_path .. '"'
             FLEImageMagickAPI.add_command_string(labelling_context.imageMagickHandle, command_string)
 
+            -- create scaled thumbnail for exif update
+            command_string = '# Scaled thumbnail for exif update'
+            FLEImageMagickAPI.add_command_string(labelling_context.imageMagickHandle, command_string)
+            command_string = '-resize 256x256'
+            FLEImageMagickAPI.add_command_string(labelling_context.imageMagickHandle, command_string)
+            local tmpdir = LrPathUtils.getStandardFilePath("temp")
+            local thumb_file_with_path = LrPathUtils.child(tmpdir, "thumb.jpg")
+            command_string = "-write " .. '"' .. thumb_file_with_path .. '"'
+            FLEImageMagickAPI.add_command_string(labelling_context.imageMagickHandle, command_string)
+
             -- execute ImageMagick commands
             FLEImageMagickAPI.execute_commands(labelling_context.imageMagickHandle)
 
             -- add exif region if required
             local personTag = {x=0.5,y=0.5,w=1,h=1,unit='normalized',name=''} -- default value
             -- get person name, including replacing any newline/linefeed/tab with space
-            personTag.name = string.gsub(tostring(person.name,''), "%s", " ")
+            personTag.name = tostring(person.name,'')
             local replace = true -- true to replace, false to append
             logger.writeLog(2, 'add face region to thumbnail: ' .. personTag.name)
-            FLEExifToolAPI.addFaceRegion(exifToolHandle, personTag, output_file_with_path, replace)
+            FLEExifToolAPI.addFaceRegion(exifToolHandle, personTag, output_file_with_path, replace, thumb_file_with_path)
 
         end -- if person_is_named or local_exportParams.export_thumbnails_if_unnamed
 
