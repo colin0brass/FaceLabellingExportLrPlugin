@@ -156,5 +156,5 @@ I have used the following for my (limited) testing so far:
 * Lenovo Thinkpad, Intel i3; 8GB RAM
 * Windows 10 Home, v1909; v21H1
 * Lightroom Classic v9.4; v11.4.1; v12.0
-* ImageMagic 7.0.10-28; 7.1.0-39
+* ImageMagic 7.0.10-28; 7.1.0-59
 * ExifTool 12.04; 12.42; 12.49
