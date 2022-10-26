@@ -138,16 +138,23 @@ and finally click "Export"
 ## Test platform
 I have used the following for my (limited) testing so far:
 
-### Mac
+### Mac Apple M1
+* Mac Studio (2022), Apple M1 Max; 64GB RAM
+* MacOS Monterey v12.6
+* Lightroom Classic v12.0
+* ImageMagick 7.1.0-51
+* ExifTool 12.49
+
+### Mac x86
 * iMac (2017), Intel Core i5; 16GB RAM
 * MacOS Catalina v10.15.6; Big Sur v11.1, v11.2; Monterey v12.4
 * Lightroom Classic v9.4; v10.1; v10.1.1; v11.4
 * ImageMagick 7.0.10-25
-* ExifTool 12.01
+* ExifTool 12.04
 
 ### Windows
 * Lenovo Thinkpad, Intel i3; 8GB RAM
 * Windows 10 Home, v1909; v21H1
-* lightroom Classic v9.4; v11.4.1
+* Lightroom Classic v9.4; v11.4.1; v12.0
 * ImageMagic 7.0.10-28; 7.1.0-39
-* ExifTool 12.04; 12.42
+* ExifTool 12.04; 12.42; 12.49

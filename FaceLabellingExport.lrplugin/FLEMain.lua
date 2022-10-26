@@ -251,146 +251,53 @@ function FLEMain.export_labeled_image(people, photoDimension, photoDescription, 
     labelling_context.labels = labels
 
     -- check and optimise positions
-    if not local_exportParams.label_auto_optimise then
-        logger.writeLog(3, "Label positions set to fixed")
-    else
-        logger.writeLog(3, "Label positions check and optimisation")
-        check_for_label_position_clashes()
-        local is_clash = false -- initial value
-        local recommended_config = nil -- initial value
-        is_clash, recommended_config = optimise_labels()
-        logger.writeLog(4, "Label positions optimised; is_clash=" .. tostring(is_clash))
-        if not recommended_config then
-            logger.writeLog(0, "Label position optimisation - no resulting recommended config found")
+    if local_exportParams.draw_label_boxes or local_exportParams.draw_label_text then
+        if not local_exportParams.label_auto_optimise then
+            logger.writeLog(3, "Label positions set to fixed")
         else
-            logger.writeLog(3, "Label positions - applying recommended config")
-            logger.writeTable(5, recommended_config)
-            labelling_context.labels, label_config.font_size = copy_config_to_labels(recommended_config)
+            logger.writeLog(3, "Label positions check and optimisation")
+            check_for_label_position_clashes()
+            local is_clash = false -- initial value
+            local recommended_config = nil -- initial value
+            is_clash, recommended_config = optimise_labels()
+            logger.writeLog(4, "Label positions optimised; is_clash=" .. tostring(is_clash))
+            if not recommended_config then
+                logger.writeLog(0, "Label position optimisation - no resulting recommended config found")
+            else
+                logger.writeLog(3, "Label positions - applying recommended config")
+                logger.writeTable(5, recommended_config)
+                labelling_context.labels, label_config.font_size = copy_config_to_labels(recommended_config)
+            end
         end
     end
 
     logger.writeLog(3, "Create ImageMagick script command file for image labelling")
 
-    -- input file
-    exported_file = '"' .. photoPath .. '"'
-    command_string = '# Input file'
     FLEImageMagickAPI.start_new_command(labelling_context.imageMagickHandle)
-    FLEImageMagickAPI.add_command_string(labelling_context.imageMagickHandle, command_string)
-    command_string = exported_file
-    if local_exportParams.obfuscate_image then -- fade image
-        command_string = command_string .. ' -fill white -colorize 95%'
-    end
-    if local_exportParams.remove_exif then -- remove exif
-        command_string = command_string .. ' -strip'
-    end
-    FLEImageMagickAPI.add_command_string(labelling_context.imageMagickHandle, command_string)
 
     -- label image
     if local_exportParams.label_image then
+        logger.writeLog(4, "label_image")
 
-        -- person face outlines
-        if local_exportParams.draw_face_outlines then
-            command_string = '# Person face outlines'
-            FLEImageMagickAPI.add_command_string(labelling_context.imageMagickHandle, command_string)
-            command_string = string.format('-strokewidth %d -stroke %s -fill "rgba( 255, 255, 255, 0.0)"',
-                                            local_exportParams.face_outline_line_width,
-                                            local_exportParams.face_outline_colour)
-            FLEImageMagickAPI.add_command_string(labelling_context.imageMagickHandle, command_string)
-            for i, person in pairs(people) do -- is this robust for zero length?
-                command_string = string.format('-draw "rectangle %d,%d %d,%d"',
-                        person['x'], person['y'], person['x']+person['w'], person['y']+person['h'])
-                FLEImageMagickAPI.add_command_string(labelling_context.imageMagickHandle, command_string)
-            end
+        -- label image
+        if local_exportParams.caption_position == 'above' then
+            logger.writeLog(4, "caption above")
+            -- caption above image
+            addImageCaption(local_exportParams, labelling_context, people, photoDescription)
+            loadImageLabelCrop(local_exportParams, labelling_context, people, photoDimension, photoDescription, photoPath)
+        else
+            logger.writeLog(4, "caption below")
+            -- image above caption
+            loadImageLabelCrop(local_exportParams, labelling_context, people, photoDimension, photoDescription, photoPath)
+            addImageCaption(local_exportParams, labelling_context, people, photoDescription)
         end
 
-        -- label boxes
-        if local_exportParams.draw_label_boxes then
-            command_string = '# Label box outlines'
-            FLEImageMagickAPI.add_command_string(labelling_context.imageMagickHandle, command_string)
-            command_string = string.format('-strokewidth %d -stroke %s -fill "rgba( 255, 255, 255, 0.0)"',
-                                            local_exportParams.label_outline_line_width,
-                                            local_exportParams.label_outline_colour)
-            FLEImageMagickAPI.add_command_string(labelling_context.imageMagickHandle, command_string)
-            for i, label in pairs(labels) do -- is this robust for zero length?
-                command_string = string.format('-draw "rectangle %d,%d %d,%d"',
-                        label['x'], label['y'], label['x']+label['w'], label['y']+label['h'])
-                FLEImageMagickAPI.add_command_string(labelling_context.imageMagickHandle, command_string)
-            end
-        end
-
-        -- label text
-        if local_exportParams.draw_label_text then
-            command_string = '# Face labels'
-            FLEImageMagickAPI.add_command_string(labelling_context.imageMagickHandle, command_string)
-            for i, label in pairs(labels) do -- is this robust for zero length?
-                logger.writeLog(3, "Face label: " .. label.text)
-                command_string = string.format('-font %s -pointsize %d -stroke %s -strokewidth %d -fill %s -undercolor "%s"',
-                                               local_exportParams.font_type,
-                                               label.font_size,
-                                               local_exportParams.font_colour,
-                                               local_exportParams.font_line_width,
-                                               local_exportParams.font_colour,
-                                               local_exportParams.label_undercolour)
-                FLEImageMagickAPI.add_command_string(labelling_context.imageMagickHandle, command_string)
-                text = utils.text_line_wrap(label.text, label.num_rows)
-                gravity = translate_align_to_gravity(label.text_align)
-                command_string = string.format('-background none -size %dx -gravity %s caption:"%s"',
-                                               label.w, gravity, text)
-                FLEImageMagickAPI.add_command_string(labelling_context.imageMagickHandle, command_string)
-                command_string = string.format('-gravity NorthWest -geometry +%d+%d -composite',
-                                               label.x, label.y)
-                FLEImageMagickAPI.add_command_string(labelling_context.imageMagickHandle, command_string)
-            end
-        end
-
-        -- caption text
-        if local_exportParams.draw_caption_text and not utils.isnil(photoDescription) then
-            command_string = '# Caption text'
-            FLEImageMagickAPI.add_command_string(labelling_context.imageMagickHandle, command_string)
-            logger.writeLog(3, "Caption text: " .. photoDescription)
-            command_string = string.format('-font %s -pointsize %d -stroke %s -strokewidth %d -fill %s -undercolor "%s"',
-                                           local_exportParams.caption_font_type,
-                                           local_exportParams.caption_font_size_fixed,
-                                           local_exportParams.caption_font_colour,
-                                           local_exportParams.caption_font_line_width,
-                                           local_exportParams.caption_font_colour,
-                                           local_exportParams.caption_background_colour) -- revert to local_exportParams.caption_undercolour if adding on-image caption option
-            FLEImageMagickAPI.add_command_string(labelling_context.imageMagickHandle, command_string)
-            text = photoDescription
-            text_gravity = 'center'
-            logger.writeLog(5, "local_exportParams.caption_background_colour:" .. local_exportParams.caption_background_colour)
-            logger.writeLog(5, "photoDimension.width:" .. photoDimension.width)
-            logger.writeLog(5, "text_gravity:" .. text_gravity)
-            logger.writeLog(5, "text:" .. text)
-            command_string = string.format('-background %s -size %dx -gravity %s caption:"%s"',
-                                           local_exportParams.caption_background_colour,
-                                           photoDimension.width,
-                                           text_gravity,
-                                           text)
-            FLEImageMagickAPI.add_command_string(labelling_context.imageMagickHandle, command_string)
-            local caption_gravity = 'south' -- default value
-            if local_exportParams.caption_position == 'above' then
-                caption_gravity = 'north'
-            else
-                caption_gravity = 'south'
-            end
-            command_string = string.format('-gravity %s', caption_gravity)
-            FLEImageMagickAPI.add_command_string(labelling_context.imageMagickHandle, command_string)
-            command_string = '-composite'
-            FLEImageMagickAPI.add_command_string(labelling_context.imageMagickHandle, command_string)
-        end
-
-    end -- label_image
-
-    -- label image
-    if local_exportParams.crop_image and photoDimension.HasCrop then
-        command_string = string.format('-crop %dx%d+%d+%d',
-                photoDimension.CropW, photoDimension.CropH, photoDimension.CropX, photoDimension.CropY)
-        logger.writeLog(3, "Crop image: " .. command_string)
+        command_string = string.format('-append')
         FLEImageMagickAPI.add_command_string(labelling_context.imageMagickHandle, command_string)
+
     else
-        logger.writeLog(3, "No crop selected")
-    end -- if crop
+        logger.writeLog(4, "don't label image")
+    end -- label_image
 
     -- output file
     local filename = LrPathUtils.leafName( photoPath )
@@ -1448,6 +1355,142 @@ function getRegionsAndPhotoInfo(photoPath)
     local facesLr, photoDimension, photoDescription = FLEExifToolAPI.getFaceRegionsAndPhotoInfo(exifToolHandle, photoPath)
 
     return facesLr, photoDimension, photoDescription
+end
+
+--------------------------------------------------------------------------------
+-- loadImageLabelCrop
+
+function loadImageLabelCrop(local_exportParams, labelling_context, people, photoDimension, photoDescription, photoPath)
+    logger.writeLog(5, "loadImageLabelCrop")
+
+    command_string = string.format('\(')
+    FLEImageMagickAPI.add_command_string(labelling_context.imageMagickHandle, command_string)
+
+    -- input file
+    exported_file = '"' .. photoPath .. '"'
+    command_string = '# Input file'
+    FLEImageMagickAPI.add_command_string(labelling_context.imageMagickHandle, command_string)
+    command_string = exported_file
+    if local_exportParams.obfuscate_image then -- fade image
+        command_string = command_string .. ' -fill white -colorize 95%'
+    end
+    if local_exportParams.remove_exif then -- remove exif
+        command_string = command_string .. ' -strip'
+    end
+    FLEImageMagickAPI.add_command_string(labelling_context.imageMagickHandle, command_string)
+
+    -- person face outlines
+    if local_exportParams.draw_face_outlines then
+        command_string = '# Person face outlines'
+        FLEImageMagickAPI.add_command_string(labelling_context.imageMagickHandle, command_string)
+        command_string = string.format('-strokewidth %d -stroke %s -fill "rgba( 255, 255, 255, 0.0)"',
+                                        local_exportParams.face_outline_line_width,
+                                        local_exportParams.face_outline_colour)
+        FLEImageMagickAPI.add_command_string(labelling_context.imageMagickHandle, command_string)
+        for i, person in pairs(people) do -- is this robust for zero length?
+            command_string = string.format('-draw "rectangle %d,%d %d,%d"',
+                    person['x'], person['y'], person['x']+person['w'], person['y']+person['h'])
+            FLEImageMagickAPI.add_command_string(labelling_context.imageMagickHandle, command_string)
+        end
+    end
+
+    -- label boxes
+    if local_exportParams.draw_label_boxes then
+        command_string = '# Label box outlines'
+        FLEImageMagickAPI.add_command_string(labelling_context.imageMagickHandle, command_string)
+        command_string = string.format('-strokewidth %d -stroke %s -fill "rgba( 255, 255, 255, 0.0)"',
+                                        local_exportParams.label_outline_line_width,
+                                        local_exportParams.label_outline_colour)
+        FLEImageMagickAPI.add_command_string(labelling_context.imageMagickHandle, command_string)
+        for i, label in pairs(labels) do -- is this robust for zero length?
+            command_string = string.format('-draw "rectangle %d,%d %d,%d"',
+                    label['x'], label['y'], label['x']+label['w'], label['y']+label['h'])
+            FLEImageMagickAPI.add_command_string(labelling_context.imageMagickHandle, command_string)
+        end
+    end
+
+    -- label text
+    if local_exportParams.draw_label_text then
+        command_string = '# Face labels'
+        FLEImageMagickAPI.add_command_string(labelling_context.imageMagickHandle, command_string)
+        for i, label in pairs(labels) do -- is this robust for zero length?
+            logger.writeLog(3, "Face label: " .. label.text)
+            command_string = string.format('-font %s -pointsize %d -stroke %s -strokewidth %d -fill %s -undercolor "%s"',
+                                           local_exportParams.font_type,
+                                           label.font_size,
+                                           local_exportParams.font_colour,
+                                           local_exportParams.font_line_width,
+                                           local_exportParams.font_colour,
+                                           local_exportParams.label_undercolour)
+            FLEImageMagickAPI.add_command_string(labelling_context.imageMagickHandle, command_string)
+            text = utils.text_line_wrap(label.text, label.num_rows)
+            gravity = translate_align_to_gravity(label.text_align)
+            command_string = string.format('-background none -size %dx -gravity %s caption:"%s"',
+                                           label.w, gravity, text)
+            FLEImageMagickAPI.add_command_string(labelling_context.imageMagickHandle, command_string)
+            command_string = string.format('-gravity NorthWest -geometry +%d+%d -composite',
+                                           label.x, label.y)
+            FLEImageMagickAPI.add_command_string(labelling_context.imageMagickHandle, command_string)
+        end
+    end
+
+    -- crop image
+    if local_exportParams.crop_image and photoDimension.HasCrop then
+        command_string = string.format('-crop %dx%d+%d+%d',
+                photoDimension.CropW, photoDimension.CropH, photoDimension.CropX, photoDimension.CropY)
+        logger.writeLog(3, "Crop image: " .. command_string)
+        FLEImageMagickAPI.add_command_string(labelling_context.imageMagickHandle, command_string)
+    else
+        logger.writeLog(3, "No crop selected")
+    end -- if crop
+
+    command_string = string.format('\)')
+    FLEImageMagickAPI.add_command_string(labelling_context.imageMagickHandle, command_string)
+end
+
+--------------------------------------------------------------------------------
+-- addImageCaption
+
+function addImageCaption(local_exportParams, labelling_context, people, photoDescription)
+    logger.writeLog(5, "addImageCaption")
+
+    -- caption text
+    if local_exportParams.draw_caption_text and not utils.isnil(photoDescription) then
+        command_string = '# Caption text'
+        FLEImageMagickAPI.add_command_string(labelling_context.imageMagickHandle, command_string)
+        logger.writeLog(3, "Caption text: " .. photoDescription)
+        command_string = string.format('-font %s -pointsize %d -stroke %s -strokewidth %d -fill %s -undercolor "%s"',
+                                       local_exportParams.caption_font_type,
+                                       local_exportParams.caption_font_size_fixed,
+                                       local_exportParams.caption_font_colour,
+                                       local_exportParams.caption_font_line_width,
+                                       local_exportParams.caption_font_colour,
+                                       local_exportParams.caption_background_colour) -- revert to local_exportParams.caption_undercolour if adding on-image caption option
+        FLEImageMagickAPI.add_command_string(labelling_context.imageMagickHandle, command_string)
+        text = photoDescription
+        text_gravity = 'center'
+        logger.writeLog(5, "local_exportParams.caption_background_colour:" .. local_exportParams.caption_background_colour)
+        logger.writeLog(5, "photoDimension.width:" .. photoDimension.width)
+        logger.writeLog(5, "text_gravity:" .. text_gravity)
+        logger.writeLog(5, "text:" .. text)
+        command_string = string.format('-background %s -size %dx -gravity %s caption:"%s"',
+                                       local_exportParams.caption_background_colour,
+                                       photoDimension.width,
+                                       text_gravity,
+                                       text)
+        FLEImageMagickAPI.add_command_string(labelling_context.imageMagickHandle, command_string)
+        local caption_gravity = 'south' -- default value
+        if local_exportParams.caption_position == 'above' then
+            caption_gravity = 'north'
+        else
+            caption_gravity = 'south'
+        end
+--            command_string = string.format('-gravity %s', caption_gravity)
+--        command_string = string.format('-append')
+--        FLEImageMagickAPI.add_command_string(labelling_context.imageMagickHandle, command_string)
+--            command_string = '-composite'
+--            FLEImageMagickAPI.add_command_string(labelling_context.imageMagickHandle, command_string)
+    end
 end
 
 return FLEMain
