@@ -49,9 +49,7 @@ require "Utils.lua"
 local logger = {}
 
 filename = "logger"
-log_level_threshold = 2 -- defaut
-local myLogger = {}
-
+log_level_threshold = 2 -- default
 logger.logFilePath = '' -- initial value
 
 --============================================================================--
@@ -61,22 +59,25 @@ logger.logFilePath = '' -- initial value
 -- init
 
 function logger.init(filename, set_log_level_threshold)
-	logger.set_log_level(set_log_level_threshold)
-	
-	myLogger = LrLogger(filename)
-	myLogger:enable("logfile")
-	
-    -- open and truncate log file if it already exists
-	local docdir = LrPathUtils.getStandardFilePath("documents")
-	logger.logFilePath = LrPathUtils.child(
-	                    LrPathUtils.child(docdir, 'LrClassicLogs'), 
-	                    filename .. '.log')
-	if LrFileUtils.exists(logger.logFilePath) then
-	    local file = io.open(logger.logFilePath, "w")
-	    if file then
+    logger.set_log_level(set_log_level_threshold)
+
+    -- Determine log directory and file path
+    local docdir = LrPathUtils.getStandardFilePath("documents")
+    local logDir = LrPathUtils.child(docdir, 'LrClassicLogs')
+    logger.logFilePath = LrPathUtils.child(logDir, filename .. '.log')
+
+    -- Create log directory if it doesn't exist
+    if not LrFileUtils.exists(logDir) then
+        LrFileUtils.createAllDirectories(logDir)
+    end
+
+    -- Open and truncate log file if it already exists
+    if LrFileUtils.exists(logger.logFilePath) then
+        local file = io.open(logger.logFilePath, "w")
+        if file then
             io.close(file)
-        end -- if file
-    end -- if LrFileUtils.exists(logger.logFilePath)
+        end
+    end
     logger.writeLog(0, 'logger.init:' .. logger.logFilePath)
 end
 
@@ -84,16 +85,16 @@ end
 -- set_log_level
 
 function logger.set_log_level(set_log_level_threshold)
-	log_level_threshold = set_log_level_threshold
+    log_level_threshold = set_log_level_threshold
 end
-	
+    
 --------------------------------------------------------------------------------
 -- get_log_level
 
 function logger.get_log_level()
-	return log_level_threshold
+    return log_level_threshold
 end
-	
+    
 --------------------------------------------------------------------------------
 -- write message to log file
 
@@ -101,10 +102,17 @@ function logger.writeLog(level, message)
     if log_level_threshold then -- handle case where logger is used during FLEInitPlugin, before logger init 
         if level <= log_level_threshold then
             message = utils.ifnil(message, '')
-            if type(message) ~= 'string' then -- == 'boolean' then
+            if type(message) ~= 'string' then
                 message = tostring(message)
             end
-            myLogger:trace(level .. " : " .. message)
+            -- Write to our own log file
+            if logger.logFilePath and logger.logFilePath ~= '' then
+                local file = io.open(logger.logFilePath, "a")
+                if file then
+                    file:write(os.date("%Y-%m-%d %H:%M:%S") .. " [" .. level .. "] " .. message .. "\n")
+                    file:close()
+                end
+            end
         end
     end
 end
