@@ -69,28 +69,85 @@ function utils.file_present( file )
 end
 
 --------------------------------------------------------------------------------
--- Split text nicely over specified number of lines
+-- UTF-8 aware length
 
--- adapted from: https://stackoverflow.com/questions/5059956/algorithm-to-divide-text-into-3-evenly-sized-groups
+local function utf8len(str)
+    local _, count = string.gsub(str, "[^\128-\193]", "")
+    return count
+end
+
+--------------------------------------------------------------------------------
+-- UTF-8 aware substring (returns substring from startChar to endChar, inclusive)
+
+local function utf8sub(str, startChar, endChar)
+    startChar = startChar or 1
+    local startByte = 1
+    local currentChar = 1
+    local i = 1
+    while currentChar < startChar and i <= #str do
+        local c = string.byte(str, i)
+        if c >= 0 and c <= 127 then
+            i = i + 1
+        elseif c >= 192 and c <= 223 then
+            i = i + 2
+        elseif c >= 224 and c <= 239 then
+            i = i + 3
+        elseif c >= 240 and c <= 247 then
+            i = i + 4
+        end
+        currentChar = currentChar + 1
+    end
+    startByte = i
+
+    if not endChar then
+        return string.sub(str, startByte)
+    end
+
+    local endByte = startByte
+    local charsToGo = endChar - startChar + 1
+    while charsToGo > 0 and endByte <= #str do
+        local c = string.byte(str, endByte)
+        if c >= 0 and c <= 127 then
+            endByte = endByte + 1
+        elseif c >= 192 and c <= 223 then
+            endByte = endByte + 2
+        elseif c >= 224 and c <= 239 then
+            endByte = endByte + 3
+        elseif c >= 240 and c <= 247 then
+            endByte = endByte + 4
+        end
+        charsToGo = charsToGo - 1
+    end
+    return string.sub(str, startByte, endByte - 1)
+end
+
+--------------------------------------------------------------------------------
+-- Split text nicely over specified number of lines (UTF-8 safe)
+
 function utils.text_line_wrap(text, num_lines)
-    words = {}
-    for word in text:gmatch("%w+") do table.insert(words, word) end
-    num_words = #words
+    local words = {}
+    -- for word in text:gmatch("%w+") do table.insert(words, word) end
+    for word in text:gmatch("[^%s]+") do
+        if not utils.isnil(word) and word ~= '' then
+            table.insert(words, word)
+        end
+    end -- for word
+    local num_words = #words
     num_lines = math.min(num_lines, num_words) -- no more lines than words
 
-    cumulative_width = {}
+    local cumulative_width = {}
     cumulative_width[1] = 0
     for i, word in pairs(words) do
         --logger.writeLog(5, "'" .. word .. "'")
-        table.insert(cumulative_width, cumulative_width[#cumulative_width] + string.len(word))
+        table.insert(cumulative_width, cumulative_width[#cumulative_width] + utf8len(word))
     end
-    total_width = cumulative_width[#cumulative_width] + #words - 1 -- len words -1 space
-    line_width = (total_width - (num_lines - 1)) / num_lines -- num_lines-1 line breaks
+    local total_width = cumulative_width[#cumulative_width] + #words - 1 -- len words -1 space
+    local line_width = (total_width - (num_lines - 1)) / num_lines -- num_lines-1 line breaks
 
     -- cost of a line (words[i] .. words[j-1])
     -- lua table indexes start at 1 (not 0)
-    function cost(i, j)
-        actual_line_width = math.max(j - i - 1, 0) + cumulative_width[j+1] - cumulative_width[i+1]
+    local function cost(i, j)
+        local actual_line_width = math.max(j - i - 1, 0) + cumulative_width[j+1] - cumulative_width[i+1]
         return (line_width - actual_line_width)^2
     end
 
