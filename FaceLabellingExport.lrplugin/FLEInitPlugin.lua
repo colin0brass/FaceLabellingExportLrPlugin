@@ -115,6 +115,13 @@ preference_table = {
     { key = 'obfuscate_image',      default = false },
     { key = 'remove_exif',          default = true },
 
+    -- Face region preferences
+    { key = 'adapt_face_region',                  default = false },
+    { key = 'face_region_expand_ratio_top',       default = 1.25},
+    { key = 'face_region_expand_ratio_bottom',    default = 1.25},
+    { key = 'face_region_expand_ratio_left',      default = 1.25},
+    { key = 'face_region_expand_ratio_right',     default = 1.25},
+    
     -- Labelling preferences - font
     { key = 'font_type',                          default = MAC_ENV and 'Courier' or 'Courier-New' },
     { key = 'font_list',                          default = {} },

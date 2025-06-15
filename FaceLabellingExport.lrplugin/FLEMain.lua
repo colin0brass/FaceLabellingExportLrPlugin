@@ -359,28 +359,49 @@ function init()
 end
 
 --------------------------------------------------------------------------------
+-- Apply face region expansion ratios to face region
+local function adapt_face_region(photoDimension, region)
+    local region_new = {}
+
+    local x_centre = region.x + math.floor(region.w / 2)
+    local y_centre = region.y + math.floor(region.h / 2)
+
+    local w_left = math.floor(region.w / 2 * local_exportParams.face_region_expand_ratio_left)
+    local w_right = math.floor(region.w / 2 * local_exportParams.face_region_expand_ratio_right)
+    local h_top = math.floor(region.h / 2 * local_exportParams.face_region_expand_ratio_top)
+    local h_bottom = math.floor(region.h / 2 * local_exportParams.face_region_expand_ratio_bottom)
+
+    region_new.x = math.max(0, x_centre - w_left)
+    region_new.y = math.max(0, y_centre - h_top)
+    region_new.w = math.min(photoDimension.width - region_new.x, w_left + w_right)
+    region_new.h = math.min(photoDimension.height - region_new.y, h_top + h_bottom)
+
+    return region_new
+end
+
+--------------------------------------------------------------------------------
 -- Get people from exif label information
 
 function get_person(photoDimension, region)
     local name = utils.ifnil(region.name, 'Unknown')
 
-    x = region.x
-    y = region.y
-    w = region.w
-    h = region.h
+    if local_exportParams.adapt_face_region then
+        -- adapt face region according to expansion ratios
+        region = adapt_face_region(photoDimension, region)
+    end
 
     logger.writeLog(4, string.format("Name '%s', x:%d y:%d, w:%d, h:%d",
-        name, x, y, w, h))
+        name, region.x, region.y, region.w, region.h))
 
     if local_exportParams.obfuscate_labels then
         name = utils.randomise_string(name)
     end
 
     person = {}
-    person.x = x
-    person.y = y
-    person.w = w
-    person.h = h
+    person.x = region.x
+    person.y = region.y
+    person.w = region.w
+    person.h = region.h
     person.name = name
 
     return person

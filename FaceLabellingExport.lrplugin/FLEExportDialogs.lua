@@ -163,6 +163,12 @@ local function roundOneDecimalPlace(propertyTable, key, value)
 end
 
 --------------------------------------------------------------------------------
+-- Observer function to round slider value to specified number of decimal places
+local function roundTwoDecimalPlaces(propertyTable, key, value)
+    propertyTable[key] = utils.round(propertyTable[key], 2)
+end
+
+--------------------------------------------------------------------------------
 -- Observer function to update experiment list and ensure consistent with defaults
 function update_experiment_list(propertyTable, key)
     local exp_list = {} -- initial value
@@ -491,6 +497,10 @@ function FLEExportDialogs.startDialog( propertyTable )
      propertyTable:addObserver( 'label_width_to_region_ratio_large', roundOneDecimalPlace )
      propertyTable:addObserver( 'image_width_to_region_ratio_small', roundOneDecimalPlace )
      propertyTable:addObserver( 'image_width_to_region_ratio_large', roundOneDecimalPlace )
+     propertyTable:addObserver( 'face_region_expand_ratio_top', roundTwoDecimalPlaces )
+     propertyTable:addObserver( 'face_region_expand_ratio_bottom', roundTwoDecimalPlaces )
+     propertyTable:addObserver( 'face_region_expand_ratio_left', roundTwoDecimalPlaces )
+     propertyTable:addObserver( 'face_region_expand_ratio_right', roundTwoDecimalPlaces )
 
      updateExportStatus( propertyTable )
 end
@@ -657,6 +667,139 @@ function exportThumbnailsView(f, propertyTable)
 
             }, -- row
         } -- group_box; export thumbnail images
+
+    return result
+end
+
+--------------------------------------------------------------------------------
+-- dialog section for region configuration
+
+function exportRegionConfigView(f, propertyTable)
+    local bind = LrView.bind
+    local share = LrView.share
+
+    result = f:group_box { -- face region config
+        title = LOC "$$$/FaceLabelling/ExportDialog/regionConfig=Face region configuration",
+        fill_horizontal = 1,
+        f:row {
+            f:checkbox {
+                title = LOC "$$$/FaceLabelling/ExportDialog/regionConfig=Adapt face region",
+                value = bind 'adapt_face_region',
+            }, -- checkbox
+            f:group_box {
+                f:static_text {
+                    title = 'Face region expand ratio - Top:',
+                    enabled = bind 'adapt_face_region',
+                },
+                f:row {
+                    f:edit_field {
+                        width_in_digits = 4,
+                        place_horizontal = 0.5,
+                        min = 0.5,
+                        max = 2.5,
+                        precision = 0.01,
+                        increment = 0.2,
+                        value = bind('face_region_expand_ratio_top'),
+                        tooltip = 'Ratio to expand face region at top',
+                        enabled = bind 'adapt_face_region',
+                    },
+                    f:slider {
+                        min = 0.5,
+                        max = 2.5,
+                        precision = 0.1,
+                        integral = false,
+                        value = bind('face_region_expand_ratio_top'),
+                        tooltip = 'Ratio to expand face region at top',
+                        place_vertical = 0.5,
+                        enabled = bind 'adapt_face_region',
+                    },
+                }, -- row
+                f:static_text {
+                    title = 'Face region expand ratio - Bottom:',
+                    enabled = bind 'adapt_face_region',
+                },
+                f:row {
+                    f:edit_field {
+                        width_in_digits = 4,
+                        place_horizontal = 0.5,
+                        min = 0.5,
+                        max = 2.5,
+                        precision = 0.01,
+                        increment = 0.2,
+                        value = bind('face_region_expand_ratio_bottom'),
+                        tooltip = 'Ratio to expand face region at bottom',
+                        enabled = bind 'adapt_face_region',
+                    },
+                    f:slider {
+                        min = 0.5,
+                        max = 2.5,
+                        precision = 0.1,
+                        integral = false,
+                        place_vertical = 0.5,
+                        value = bind('face_region_expand_ratio_bottom'),
+                        tooltip = 'Ratio to expand face region at bottom',
+                        enabled = bind 'adapt_face_region',
+                    },
+                }, -- row
+            }, -- group_box
+            f:group_box {
+                f:static_text {
+                    title = 'Face region expand ratio - Left:',
+                    enabled = bind 'adapt_face_region',
+                },
+                f:row {
+                    f:edit_field {
+                        width_in_digits = 4,
+                        place_horizontal = 0.5,
+                        min = 0.5,
+                        max = 2.5,
+                        precision = 0.01,
+                        increment = 0.2,
+                        value = bind('face_region_expand_ratio_left'),
+                        tooltip = 'Ratio to expand face region at left',
+                        enabled = bind 'adapt_face_region',
+                    },
+                    f:slider {
+                        min = 0.5,
+                        max = 2.5,
+                        precision = 0.1,
+                        integral = false,
+                        place_vertical = 0.5,
+                        value = bind('face_region_expand_ratio_left'),
+                        tooltip = 'Ratio to expand face region at left',
+                        enabled = bind 'adapt_face_region',
+                    },
+                }, -- row
+                f:static_text {
+                    title = 'Face region expand ratio - Right:',
+                    enabled = bind 'adapt_face_region',
+                },
+                f:row {
+                    f:edit_field {
+                        width_in_digits = 4,
+                        place_horizontal = 0.5,
+                        min = 0.5,
+                        max = 2.5,
+                        precision = 0.01,
+                        increment = 0.2,
+                        value = bind('face_region_expand_ratio_right'),
+                        tooltip = 'Ratio to expand face region at right',
+                        enabled = bind 'adapt_face_region',
+                    },
+                    f:slider {
+                        min = 0.5,
+                        max = 2.5,
+                        precision = 0.1,
+                        integral = false,
+                        place_vertical = 0.5,
+                        value = bind('face_region_expand_ratio_right'),
+                        tooltip = 'Ratio to expand face region at right',
+                        enabled = bind 'adapt_face_region',
+                    },
+                }, -- row
+            }, -- group_box
+        }
+    }
 
     return result
 end
@@ -1788,6 +1931,12 @@ function FLEExportDialogs.sectionsForBottomOfDialog( f, propertyTable )
             f:view {
                 fill_horizontal = 1,
                 exportThumbnailsView(f, propertyTable),
+            }, -- view
+
+            f:separator { fill_horizontal = 1 },
+            f:view {
+                fill_horizontal = 1,
+                exportRegionConfigView(f, propertyTable),
             }, -- view
 
             f:separator { fill_horizontal = 1 },
