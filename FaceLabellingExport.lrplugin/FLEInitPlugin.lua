@@ -65,11 +65,11 @@ imagemagick_url = "https://imagemagick.org"
 if MAC_ENV then
     default_exiftool_app      = LrPathUtils.child(_PLUGIN.path, 'Mac/ExifTool/exiftool')
     default_imagemagick_app   = "/usr/local/bin/magick"
-    default_image_convert_app = "/usr/local/bin/convert"
+    default_image_convert_app = "/usr/local/bin/magick"
 else
     default_exiftool_app     = LrPathUtils.child(_PLUGIN.path, 'Win/ExifTool/exiftool.exe')
-    default_imagemagick_app   = "C:/Program Files/ImageMagick-7.0.10-Q16-HDRI/magick.exe"
-    default_image_convert_app = "C:/Program Files/ImageMagick-7.0.10-Q16-HDRI/convert.exe"
+    default_imagemagick_app   = "C:/Program Files/ImageMagick-7.1.1-Q16-HDRI/magick.exe"
+    default_image_convert_app = "C:/Program Files/ImageMagick-7.1.1-Q16-HDRI/magick.exe"
 end
 
 --============================================================================--

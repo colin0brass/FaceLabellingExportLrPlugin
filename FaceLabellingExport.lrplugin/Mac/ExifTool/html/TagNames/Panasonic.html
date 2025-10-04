@@ -86,10 +86,14 @@ reference number and not the actual firmware version)</span></span></td></tr>
   <br>&#39;1 1&#39; = 5-area
   <br>&#39;16 0&#39; = 1-area
   <br>&#39;16 16&#39; = 1-area (high speed)
+  <br>&#39;16 32&#39; = 1-area +
+  <br>&#39;17 0&#39; = Full Area
   <br>&#39;32 0&#39; = Tracking
   <br>&#39;32 1&#39; = 3-area (left)?
   <br>&#39;32 2&#39; = 3-area (center)?
   <br>&#39;32 3&#39; = 3-area (right)?
+  <br>&#39;32 16&#39; = Zone
+  <br>&#39;32 18&#39; = Zone (horizontal/vertical)
   <br>&#39;64 0&#39; = Face Detect
   <br>&#39;64 1&#39; = Face Detect (animal detect on)
   <br>&#39;64 2&#39; = Face Detect (animal detect off)
@@ -687,10 +691,9 @@ L10 and LC80)</span></span><table class=cols><tr>
   <br>4 = Extended</span></td></tr>
 <tr class=b>
 <td title='0x0076 = 118'>0x0076</td>
-<td>HDRShot</td>
+<td>MergedImages</td>
 <td class=c>int16u</td>
-<td><span class=s>0 = Off
-  <br>3 = On</span></td></tr>
+<td><span class=s><span class=n>(number of images in HDR or Live View Composite picture)</span></span></td></tr>
 <tr>
 <td title='0x0077 = 119'>0x0077</td>
 <td>BurstSpeed</td>
@@ -956,8 +959,8 @@ camera contrast)</span></span></td></tr>
 <td title='0x00be = 190'>0x00be</td>
 <td>LongExposureNRUsed</td>
 <td class=c>int16u</td>
-<td><span class=s>0 = No
-  <br>1 = Yes</span></td></tr>
+<td><span class=s>1 = No
+  <br>2 = Yes</span></td></tr>
 <tr class=b>
 <td title='0x00bf = 191'>0x00bf</td>
 <td>PostFocusMerging</td>
@@ -1004,15 +1007,40 @@ camera contrast)</span></span></td></tr>
 <td class=c>rational64s</td>
 <td>&nbsp;</td></tr>
 <tr class=b>
+<td title='0x00de = 222'>0x00de</td>
+<td>AFAreaSize</td>
+<td class=c>rational64u[2]</td>
+<td><span class=s><span class=n>(relative to size of image.  &quot;n/a&quot; for manual focus)</span></span></td></tr>
+<tr>
 <td title='0x00e4 = 228'>0x00e4</td>
 <td>LensTypeModel</td>
 <td class=c>int16u</td>
 <td>&nbsp;</td></tr>
-<tr>
+<tr class=b>
 <td title='0x00e8 = 232'>0x00e8</td>
 <td>MinimumISO</td>
 <td class=c>int32u</td>
 <td>&nbsp;</td></tr>
+<tr>
+<td title='0x00e9 = 233'>0x00e9</td>
+<td>AFSubjectDetection</td>
+<td class=c>int16u</td>
+<td><table class=cols><tr>
+  <td>0 = n/a
+  <br>1 = Human Eye/Face/Body
+  <br>2 = Animal
+  <br>3 = Human Eye/Face
+  <br>4 = Animal Body
+  <br>5 = Animal Eye/Body
+  <br>6 = Car
+  <br>7 = Motorcycle
+  <br>8 = Car (main part priority)
+  <br>9 = Motorcycle (helmet priority)
+  <br>10 = Train
+  <br>11 = Train (main part priority)
+  <br>12 = Airplane
+  <br>13 = Airplane (nose priority)</td></tr></table>
+</td></tr>
 <tr class=b>
 <td title='0x00ee = 238'>0x00ee</td>
 <td>DynamicRangeBoost</td>
@@ -1176,6 +1204,58 @@ camera contrast)</span></span></td></tr>
   <br>&#39;0 0&#39; = Off
   <br>&#39;1 1&#39; = Stretch Low
   <br>&#39;3 2&#39; = Stretch High</span></td></tr>
+</table></td></tr></table></blockquote>
+
+<h2><a name='DSA'>Panasonic DSA Tags</a></h2>
+<p>XMP Digital Shift Assistant tags written by some Leica cameras.</p>
+
+<p>These tags belong to the ExifTool XMP-xmpDSA family 1 group.</p>
+<blockquote>
+<table class=frame><tr><td>
+<table class=inner cellspacing=1>
+<tr class=h><th>Tag Name</th>
+<th>Writable</th><th>Values / <span class=n>Notes</span></th></tr>
+<tr>
+<td>ApplyAutomatically</td>
+<td class=c title=' / = Avoid'>boolean/</td>
+<td>&nbsp;</td></tr>
+<tr class=b>
+<td>CorrectionAlreadyApplied</td>
+<td class=c title=' / = Avoid'>boolean/</td>
+<td>&nbsp;</td></tr>
+<tr>
+<td>FocalLength35mm</td>
+<td class=c title=' / = Avoid'>real/</td>
+<td>&nbsp;</td></tr>
+<tr class=b>
+<td>NormalizedCropCorners</td>
+<td class=c title=' / = Avoid
+ + = List'>real/+</td>
+<td>&nbsp;</td></tr>
+<tr>
+<td>PitchAngle</td>
+<td class=c title=' / = Avoid'>real/</td>
+<td>&nbsp;</td></tr>
+<tr class=b>
+<td>RollAngle</td>
+<td class=c title=' / = Avoid'>real/</td>
+<td>&nbsp;</td></tr>
+<tr>
+<td>ScalingFactorHeight</td>
+<td class=c title=' / = Avoid'>real/</td>
+<td>&nbsp;</td></tr>
+<tr class=b>
+<td>TargetAspectRatio</td>
+<td class=c title=' / = Avoid'>real/</td>
+<td>&nbsp;</td></tr>
+<tr>
+<td>ValidCropCorners</td>
+<td class=c title=' / = Avoid'>boolean/</td>
+<td>&nbsp;</td></tr>
+<tr class=b>
+<td>Version</td>
+<td class=c title=' / = Avoid'>string/</td>
+<td>&nbsp;</td></tr>
 </table></td></tr></table></blockquote>
 
 <h2><a name='FaceDetInfo'>Panasonic FaceDetInfo Tags</a></h2>
@@ -1774,6 +1854,11 @@ on the M9, or the focal length of some multi-focal lenses.</p>
 <td>InternalSerialNumber</td>
 <td class=c>undef</td>
 <td>&nbsp;</td></tr>
+<tr>
+<td title='0x05ff = 1535'>0x05ff</td>
+<td>CameraIFD</td>
+<td class=c>-</td>
+<td>--&gt; <a href='PanasonicRaw.html#CameraIFD'>PanasonicRaw CameraIFD Tags</a></td></tr>
 </table></td></tr></table></blockquote>
 
 <h2><a name='FocusInfo'>Panasonic FocusInfo Tags</a></h2>
@@ -1908,6 +1993,11 @@ images.</p>
 <td title='0x035d = 861'>0x035d</td>
 <td>WhitePoint</td>
 <td class=c>rational64u[2]</td>
+<td>&nbsp;</td></tr>
+<tr class=b>
+<td title='0x0370 = 880'>0x0370</td>
+<td>LensProfileName</td>
+<td class=c>string</td>
 <td>&nbsp;</td></tr>
 </table></td></tr></table></blockquote>
 
@@ -2130,7 +2220,7 @@ various Panasonic and Leica models.</p>
 
 <hr>
 (This document generated automatically by Image::ExifTool::BuildTagLookup)
-<br><i>Last revised Oct 13, 2022</i>
+<br><i>Last revised Jul 21, 2025</i>
 <p class=lf><a href='index.html'>&lt;-- ExifTool Tag Names</a></p>
 </body>
 </html>

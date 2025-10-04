@@ -25,16 +25,18 @@ require Exporter;
 use Image::ExifTool qw(ImageInfo);
 
 use vars qw($VERSION @ISA @EXPORT);
-$VERSION = '1.23';
+$VERSION = '1.25';
 @ISA = qw(Exporter);
-@EXPORT = qw(check writeCheck writeInfo testCompare binaryCompare testVerbose);
+@EXPORT = qw(check writeCheck writeInfo testCompare binaryCompare testVerbose notOK done);
 
 my $noTimeLocal;
+my $rtnCode = 0;
 
 sub nearEnough($$);
 sub nearTime($$$$);
 sub formatValue($);
 sub writeInfo($$;$$$);
+sub notOK();
 
 #------------------------------------------------------------------------------
 # Compare 2 binary files
@@ -181,11 +183,11 @@ sub nearEnough($$)
             }
             next;   # ignore times if Time::Local not available
         # account for different timezones
-        } elsif ($tok1 =~ /^(\d{2}:\d{2}:\d{2})(Z|[-+]\d{2}:\d{2})$/i) {
+        } elsif ($tok1 =~ /^(\d{2}:\d{2}:\d{2}(?:\.\d+)?)(Z|[-+]\d{2}:\d{2})$/i) {
             my $time = $1;  # remove timezone
             # timezone may be wrong if writing date/time value in a different timezone
-            next if $tok2 =~ /^(\d{2}:\d{2}:\d{2})(Z|[-+]\d{2}:\d{2})$/i and $time eq $1;
-            # date/time may be wrong to if converting GMT value to local time
+            next if $tok2 =~ /^(\d{2}:\d{2}:\d{2}(?:\.\d+)?)(Z|[-+]\d{2}:\d{2})$/i and $time eq $1;
+            # date/time may be wrong too if converting GMT value to local time
             last unless $i and $toks1[$i-1] =~ /^\d{4}:\d{2}:\d{2}$/ and
                                $toks2[$i-1] =~ /^\d{4}:\d{2}:\d{2}$/;
             $tok1 = $toks1[$i-1] . ' ' . $tok1; # add date to give date/time value
@@ -194,8 +196,8 @@ sub nearEnough($$)
         # date may be different if timezone shifted into next day
         } elsif ($tok1 =~ /^\d{4}:\d{2}:\d{2}$/ and $tok2 =~ /^\d{4}:\d{2}:\d{2}$/ and
                  defined $toks1[$i+1] and defined $toks2[$i+1] and
-                 $toks1[$i+1] =~ /^(\d{2}:\d{2}:\d{2})(Z|[-+]\d{2}:\d{2})$/i and
-                 $toks2[$i+1] =~ /^(\d{2}:\d{2}:\d{2})(Z|[-+]\d{2}:\d{2})$/i)
+                 $toks1[$i+1] =~ /^(\d{2}:\d{2}:\d{2}(?:\.\d+)?)(Z|[-+]\d{2}:\d{2})$/i and
+                 $toks2[$i+1] =~ /^(\d{2}:\d{2}:\d{2}(?:\.\d+)?)(Z|[-+]\d{2}:\d{2})$/i)
         {
             ++$i;
             $tok1 .= ' ' . $toks1[$i];      # add time to give date/time value
@@ -252,7 +254,7 @@ sub nearTime($$$$)
     my $t1 = Image::ExifTool::GetUnixTime($tok1, 'local') or return 0;
     my $t2 = Image::ExifTool::GetUnixTime($tok2, 'local') or return 0;
     my $td = $t2 - $t1;
-    if ($td) {
+    if (abs($td) > 0.0001) { # (allow for round-off errors in fractional seconds)
         # patch for the MirBSD leap-second unconformity
         # (120 leap seconds should cover us until _well_ into the future)
         return 0 unless $^O eq 'mirbsd' and $td < 0 and $td > -120;
@@ -286,7 +288,7 @@ sub formatValue($)
         $str = '[' . join(',', @a) . ']';
     } elsif (ref $val eq 'HASH') {
         my $key;
-        foreach $key (sort keys %$val) {
+        foreach $key (Image::ExifTool::OrderedKeys($val)) {
             push @a, $key . '=' . formatValue($$val{$key});
         }
         $str = '{' . join(',', @a) . '}';
@@ -347,6 +349,7 @@ sub check($$$;$$$)
             my @groups = $exifTool->GetGroup($_);
             my $groups = join ', ', @groups[0..($topGroup||2)];
             my $tagID = $exifTool->GetTagID($_);
+            $tagID =~ s/([\0-\x1f\x7f-\xff])/sprintf('\\x%.2x',ord $1)/eg;
             my $desc = $exifTool->GetDescription($_);
             print FILE "[$groups] $tagID - $desc: $val";
         } else {
@@ -376,7 +379,7 @@ sub writeCheck($$$;$$$$)
     $srcfile or $srcfile = "t/images/$testname.jpg";
     my ($ext) = ($srcfile =~ /\.(.+?)$/);
     my $testfile = "t/${testname}_${testnum}_failed.$ext";
-    my $exifTool = new Image::ExifTool;
+    my $exifTool = Image::ExifTool->new;
     my @tags;
     if (ref $onlyWritten eq 'ARRAY') {
         @tags = @$onlyWritten;
@@ -449,5 +452,19 @@ sub testVerbose($$$$)
     return testCompare("$testfile.out","$testfile.failed",$testnum);
 }
 
+#------------------------------------------------------------------------------
+# One of the tests failed
+sub notOK()
+{
+    print 'not ';
+    $rtnCode = 1;
+}
+
+#------------------------------------------------------------------------------
+# Done tests and exit
+sub done()
+{
+    exit $rtnCode;
+}
 
 1; #end

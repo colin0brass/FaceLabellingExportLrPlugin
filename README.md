@@ -140,10 +140,10 @@ I have used the following for my (limited) testing so far:
 
 ### Mac Apple M1
 * Mac Studio (2022), Apple M1 Max; 64GB RAM
-* MacOS Monterey v12.6
+* MacOS Tahoe 26.0.1
 * Lightroom Classic v12.0
-* ImageMagick 7.1.0-51
-* ExifTool 12.49
+* ImageMagick 7.1.2-3_1
+* ExifTool 13.38
 
 ### Mac x86
 * iMac (2017), Intel Core i5; 16GB RAM

@@ -2,6 +2,7 @@
         "http://www.w3.org/TR/1999/REC-html401-19991224/loose.dtd">
 <html>
 <head>
+<meta http-equiv="content-type" content="text/html; charset=utf-8">
   <title>Geotagging with ExifTool</title>
 <link rel=stylesheet type='text/css' href='style.css' title='Style'>
 <style type="text/css">
@@ -9,6 +10,7 @@
 pre   { color: #800; margin-left: 4em }
 .nr   { white-space: nowrap }
 .prog { padding: 0.5em; border: 1px solid gray; background: #fee }
+.indent { margin-left: 22% }
 -->
 </style>
 </head>
@@ -18,6 +20,7 @@ pre   { color: #800; margin-left: 4em }
 <br>&nbsp; - <a href="#geotag">Geotag</a>
 <br>&nbsp; - <a href="#geosync">Geosync</a>
 <br>&nbsp; - <a href="#geotime">Geotime</a>
+<br><a href="#Geolocation">Writing Geolocation</a>
 <br><a href="#CSVFormat">CSV File Format</a>
 <br><a href="#Examples">Examples</a>
 <br><a href="#Options">Options</a>
@@ -36,15 +39,17 @@ is used to determine the GPS position at the time of the image, then the
 following tags are written to the image (if the corresponding information
 is available):</p>
 
-<pre>GPSLatitude        GPSLongitude      GPSAltitude          GPSDateStamp
-GPSLatitudeRef     GPSLongitudeRef   GPSAltitudeRef       GPSTimeStamp
-GPSTrack           GPSSpeed          GPSImgDirection      GPSPitch        
-GPSTrackRef        GPSSpeedRef       GPSImgDirectionRef   GPSRoll
-AmbientTemperature CameraElevationAngle
-</pre>
+<center><table>
+<tr><td>GPSLatitude</td><td>GPSLongitude</td><td>GPSAltitude</td><td>CameraElevationAngle</td><td>GPSPitch</td></tr>
+<tr><td>GPSLatitudeRef</td><td>GPSLongitudeRef</td><td>GPSAltitudeRef</td><td>GPSDateStamp</td><td>GPSRoll</td></tr>
+<tr><td>GPSTrack</td><td>GPSSpeed</td><td>GPSImgDirection</td><td>GPSTimeStamp</td><td> </td></tr>
+<tr><td>GPSTrackRef</td><td>GPSSpeedRef</td><td>GPSImgDirectionRef</td><td>GPSHPositioningError</td><td> </td></tr>
+<tr><td>GPSCoordinates</td><td>AmbientTemperature</td><td>GPSMeasureMode</td><td>GPSDOP</td><td> </td></tr>
+</table></center>
 
 <blockquote class=lt><i>Note: GPSPitch and GPSRoll are not standard tags, and
-must be <a href="#Orient">user-defined</a>.</i></blockquote>
+must be <a href="#Orient">user-defined</a>.  GPSCoordinates is written to
+the preferred QuickTime group when writing QuickTime-format files.</i></blockquote>
 
 <p>Currently supported GPS track log file formats:</p>
 
@@ -61,6 +66,7 @@ must be <a href="#Orient">user-defined</a>.</i></blockquote>
 <li>Google Takeout .JSON</li>
 <li>GPS/IMU .CSV</li>
 <li>DJI .CSV</li>
+<li>Columbus .CSV</li>
 <li><a href="#CSVFormat">ExifTool .CSV file</a></li>
 </ul>
 
@@ -92,7 +98,7 @@ option, so this command is equivalent to the one above:</p>
 
 <p>Multiple GPS log files may be loaded simultaneously by using more than one
 <code>-geotag</code> option or <code>-geotag=</code> assignment in the same
-command, or by using wildcards in the filename argument of the
+command, and/or by using wildcards in the filename argument of the
 <code>-geotag</code> option.  This allows batch processing of images spanning
 different tracks with a single command.  When using wildcards the argument may
 need to be quoted on some systems to prevent shell globbing, but note that
@@ -194,35 +200,54 @@ DateTimeOriginal, CreateDate, ModifyDate, FileModifyDate</li>
 position is calculated (by interpolating between fixes in the GPS track log). 
 Unless a group is specified, exiftool writes the generated tags to the default
 groups.  If a value for <code>Geotime</code> is not given, it is taken from
-unformatted value of <code>DateTimeOriginal</code> for each image (as if
-<code>"-Geotime&lt;DateTimeOriginal#"</code> had been specified), but the value
-may be copied from any other date/time tag or set directly from a date/time
-string.</p>
+unformatted value of <code>SubSecDateTimeOriginal</code> (preferentially) or
+<code>DateTimeOriginal</code> for each image, but the value may be copied from
+any other date/time tag or set directly from a date/time string.  The exact form
+of the default <code>Geotime</code> argument is:</p>
+
+<pre>"-Geotime&lt;${DateTimeOriginal#;$_=$self->GetValue('SubSecDateTimeOriginal','ValueConv') || $_}"</pre>
 
 <p>If the date/time tag does not include a timezone then one may be added (eg.
 <code>"-Geotime&lt;${CreateDate}-05:00"</code>), otherwise the local system time
 is assumed.  Decimal seconds are supported in the time value.</p>
 
-<p>By default, GPS tags are created in EXIF and the corresponding
-XMP tags are updated only if they already exist.  However, an EXIF or XMP group
-name may be specified to force writing only to the specified location.  For
-example, writing <code>XMP:Geotime</code> or <code>EXIF:Geotime</code> will
-write the generated GPS tags only to XMP or EXIF respectively.  Note that when
-written to XMP, the <code>GPSLatitudeRef</code> and <code>GPSLongitudeRef</code>
-tags are not used, and the XMP <code>GPSDateTime</code> tag is written instead
-of the separate EXIF <code>GPSDateStamp</code> and <code>GPSTimeStamp</code>
-tags.</p>
+<p>By default, in image files GPS tags are created in EXIF and the corresponding
+XMP tags are updated in only if they already exist.  In QuickTime-format files
+the XMP tags are created by default as well as writing QuickTime:GPSCoordinates
+in the preferred location.  However, an EXIF, XMP or QuickTime group name may be
+specified to force writing only to the specified location.  For example, writing
+<code>XMP:Geotime</code> or <code>EXIF:Geotime</code> will write the generated
+GPS tags only to XMP or EXIF respectively.  Note that when written to XMP, the
+<code>GPSLatitudeRef</code> and <code>GPSLongitudeRef</code> tags are not used,
+and the XMP <code>GPSDateTime</code> tag is written instead of the separate EXIF
+<code>GPSDateStamp</code> and <code>GPSTimeStamp</code> tags. Using
+<code>QuickTime:Geotime</code> disables writing of XMP tags to QuickTime-format
+files creates the GPSPosition tag in the preferred QuickTime location (ItemList
+by default), but <code>ItemList:Geotime</code>, <code>UserData:Geotime</code> or
+<code>Keys:Geotime</code> may be specified to write to a specific location.</p>
 
 <p>See the <a href="#Examples">Examples</a> section below for sample command
 lines illustrating various aspects of the geotagging feature.</p>
 
 <blockquote class=prog><b>Programmers</b>:  Note that <code>Geotime</code> must always
-be specified when geotagging via the API (the default value of
-<code>DateTimeOriginal#</code> is implemented by the application).  Also,
-<code>Geotime</code> must be set after both <code>Geotag</code> and
-<code>Geosync</code> (the exiftool application reorders the assignments to
-ensure this).
+be specified when geotagging via the API (the default value is implemented by
+the application).  Also, <code>Geotime</code> must be set after both
+<code>Geotag</code> and <code>Geosync</code> (the exiftool application reorders
+the assignments to ensure this).
 </blockquote>
+
+<a name="Geolocation"></a>
+<h3>Writing Geolocation Tags while Geotagging</h3>
+
+<p>Geolocation city, state/province and country tags may be written automatically
+based on the geotagged GPS position by setting the Geolocate tag to "geotag".
+For example:</p>
+
+<pre>exiftool -geotag track.gpx -geolocate=geotag c:\images</pre>
+
+<p>See the
+<a href="geolocation.html#Geotag">"While geotagging" section of the Geolocation page</a>
+for more information.</p>
 
 <a name="CSVFormat"></a>
 <h3>ExifTool CSV Log File Format</h3>
@@ -244,7 +269,9 @@ the values include a time zone</td></tr>
 <tr><td>GPSLatitudeRef</td><td>String beginning with "S" for southern coordinates (used only if GPSLatitude isn't signed or doesn't specify hemisphere)</td></tr>
 <tr><td>GPSLongitudeRef</td><td>String beginning with "W" for western coordinates (used only if GPSLongitude isn't signed or doesn't specify hemisphere)</td></tr>
 <tr><td>GPSAltitude</td><td>Altitude in meters relative to sea level (negative for below sea level)</td></tr>
+<tr><td>GPSSpeed</td><td>Speed in knots, or specified units if "(km/h)", "(mph)" or "(m/s)" appears in heading</td></tr>
 <tr><td>GPSTrack</td><td>Compass heading in degrees true</td></tr>
+<tr><td>GPSImgDirection</td><td>Camera compass direction in degrees true</td></tr>
 <tr><td>GPSPitch or<br>CameraElevationAngle</td><td>Pitch angle in degrees with positive pitch upwards</td></tr>
 <tr><td>GPSRoll</td><td>Roll angle in degrees</td></tr>
 </table></blockquote>
@@ -259,9 +286,9 @@ columns are ignored.</p>
 <a name="E1"></a>
 <p>1. Geotag all images in the "c:\images" directory from position information in a
 GPS track log ("c:\gps logs\track.log").  Since the <code>Geotime</code> time is
-not specified, the value of <code>DateTimeOriginal#</code> is used.  Local
-system time is assumed unless <code>DateTimeOriginal#</code> contains a
-timezone:</p>
+not specified, the value of <code>SubSecDateTimeOriginal#</code> (preferentially)
+or <code>DateTimeOriginal#</code> is used.  Local system time is assumed unless
+the date/time value contains a timezone:</p>
 
 <pre>exiftool -geotag "c:\gps logs\track.log" c:\images</pre>
 
@@ -312,7 +339,7 @@ not remove all GPS tags -- to do this instead use <code>-gps:all=</code>):</p>
 
 <a name="E9"></a>
 <p>9. Geotag an image with XMP tags, using the time from
-<code>DateTimeOriginal</code>:</p>
+<code>SubSecDateTimeOriginal</code> or <code>DateTimeOriginal</code>:</p>
 
 <pre>exiftool -xmp:geotag=track.log a.jpg</pre>
 
@@ -330,7 +357,9 @@ operating systems to prevent filename expansion):</p>
 
 <a name="E12"></a>
 <p>12. Geotag from a sub-second date/time value with a sub-second time synchronization
-(only possible if the EXIF sub-second time stamps are available):</p>
+(only possible if the EXIF sub-second time stamps or time zone are available).
+<i>[Note that this example is obsolete since ExifTool 13.29 because
+SubSecDateTimeOriginal is used by default if available.]</i></p>
 
 <pre>exiftool -Geotag a.log -Geosync=+13.42 "-Geotime&lt;SubSecDateTimeOriginal" dir
 </pre>
@@ -340,6 +369,21 @@ operating systems to prevent filename expansion):</p>
 time synchronization from three already-geotagged images:</p>
 
 <pre>exiftool -geotag a.log -geosync=1.jpg -geosync=2.jpg -geosync=3.jpg dir
+</pre>
+
+<a name="E14"></a>
+<p>14. Geotag MP4 videos by writing Keys:GPSCoordinates (add 
+<code>-api QuickTimeUTC</code> to this command if CreateDate in your
+videos is UTC):</p>
+
+<pre>exiftool -geotag a.log "-keys:geotime&lt;createdate" -ext MP4 dir
+</pre>
+
+<a name="E15"></a>
+<p>15. Geotag images in EXIF by DateTimeOriginal and videos in UserData
+by CreateDate:</p>
+
+<pre>exiftool -geotag a.log "-exif:geotime&lt;datetimeoriginal" "-userdata:geotime&lt;createdate" dir
 </pre>
 
 <a name="Options"></a>
@@ -505,7 +549,7 @@ examples.</blockquote>
 <h3>Tips</h3>
 
 <a name="TP1"></a>
-<p>1. <b>Time Synchronization</b></p>
+<p><b>1. Time Synchronization</b></p>
 
 <blockquote>One way to accurately synchronize your images with GPS time is to
 take a picture of the time displayed on your GPS unit while you are out
@@ -561,6 +605,10 @@ any number of formats. This section gives examples for creating GPX and KML
 output files from a set of geotagged images, or from a geotagged video file.
 (But note that the <code>-ee3</code> option must be added to the commands below
 to extract the full track from a video file.)</p>
+
+<blockquote class=lt><i>(This is different from what is sometimes called
+"reverse geocoding", which is the <a href="geolocation.html">ExifTool Geolocation feature</a>.)</i>
+</blockquote>
 
 <a name="GPX"></a>
 <h4>Creating a GPX track log</h4>
@@ -719,8 +767,8 @@ ExifTool distribution.  See
 forum post</a> for more useful tips about creating KML files.</p>
 
 <hr>
-<i>Created Apr. 2, 2009</i><br>
-<i>Last revised Sept. 23, 2021</i>
+<i>Created Apr 2, 2009</i><br>
+<i>Last revised Jul 7, 2025</i>
 <p class='lf'><a href="index.html">&lt;-- Back to ExifTool home page</a></p>
 </body>
 </html>

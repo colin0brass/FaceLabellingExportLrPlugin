@@ -42,11 +42,16 @@ metadata to WEBP images, but can&#39;t yet write to other RIFF-based formats.</p
 <td class=c>-</td>
 <td>--&gt; <a href='RIFF.html#ANMF'>RIFF ANMF Tags</a></td></tr>
 <tr class=b>
+<td>'C2PA'</td>
+<td>JUMBF</td>
+<td class=c>-</td>
+<td>--&gt; <a href='Jpeg2000.html'>Jpeg2000 Tags</a></td></tr>
+<tr>
 <td>'CSET'</td>
 <td>CharacterSet</td>
 <td class=c>-</td>
 <td>--&gt; <a href='RIFF.html#CSET'>RIFF CSET Tags</a></td></tr>
-<tr>
+<tr class=b>
 <td>'EXIF'</td>
 <td>EXIF
   <br>UnknownEXIF</td>
@@ -54,12 +59,17 @@ metadata to WEBP images, but can&#39;t yet write to other RIFF-based formats.</p
 <td><span class=n>(WebP files)</span>
   <br>--&gt; <a href='EXIF.html'>EXIF Tags</a>
   <br>--&gt; <a href='EXIF.html'>EXIF Tags</a></td></tr>
-<tr class=b>
+<tr>
 <td>'ICCP'</td>
 <td>ICC_Profile</td>
 <td class=c>-</td>
 <td>--&gt; <a href='ICC_Profile.html'>ICC_Profile Tags</a>
   <br><span class='n s'>(WebP files)</span></td></tr>
+<tr class=b>
+<td>'ID3 '</td>
+<td>ID3-2</td>
+<td class=c>-</td>
+<td>--&gt; <a href='ID3.html'>ID3 Tags</a></td></tr>
 <tr>
 <td>'IDIT'</td>
 <td>DateTimeOriginal</td>
@@ -132,30 +142,41 @@ metadata to WEBP images, but can&#39;t yet write to other RIFF-based formats.</p
 <td class=c>-</td>
 <td>--&gt; <a href='Pentax.html#AVI'>Pentax AVI Tags</a></td></tr>
 <tr>
+<td>'SEAL'</td>
+<td>SEAL</td>
+<td class=c>-</td>
+<td>--&gt; <a href='XMP.html#SEAL'>XMP SEAL Tags</a></td></tr>
+<tr class=b>
 <td>'SGLT'</td>
 <td>BikeBroAccel</td>
 <td class=c>-</td>
 <td>--&gt; <a href='QuickTime.html#Stream'>QuickTime Stream Tags</a></td></tr>
-<tr class=b>
+<tr>
 <td>'SLLT'</td>
 <td>BikeBroGPS</td>
 <td class=c>-</td>
 <td>--&gt; <a href='QuickTime.html#Stream'>QuickTime Stream Tags</a></td></tr>
-<tr>
+<tr class=b>
 <td>'VP8 '</td>
 <td>VP8Bitstream</td>
 <td class=c>-</td>
 <td>--&gt; <a href='RIFF.html#VP8'>RIFF VP8 Tags</a></td></tr>
-<tr class=b>
+<tr>
 <td>'VP8L'</td>
 <td>VP8L</td>
 <td class=c>-</td>
 <td>--&gt; <a href='RIFF.html#VP8L'>RIFF VP8L Tags</a></td></tr>
-<tr>
+<tr class=b>
 <td>'VP8X'</td>
 <td>VP8X</td>
 <td class=c>-</td>
 <td>--&gt; <a href='RIFF.html#VP8X'>RIFF VP8X Tags</a></td></tr>
+<tr>
+<td>"XMP\0"</td>
+<td>XMP</td>
+<td class=c>-</td>
+<td>--&gt; <a href='XMP.html'>XMP Tags</a>
+  <br><span class='n s'>(incorrectly written WebP files)</span></td></tr>
 <tr class=b>
 <td>'XMP '</td>
 <td>XMP</td>
@@ -220,61 +241,66 @@ and generate a list of cue points with labels)</span></span></td></tr>
 <td class=c>-</td>
 <td>--&gt; <a href='QuickTime.html#Stream'>QuickTime Stream Tags</a></td></tr>
 <tr class=b>
+<td>'guan'</td>
+<td>Guano</td>
+<td class=c>no</td>
+<td>&nbsp;</td></tr>
+<tr>
 <td>'iXML'</td>
 <td>IXML</td>
 <td class=c>-</td>
 <td>--&gt; <a href='XMP.html#XML'>XMP XML Tags</a></td></tr>
-<tr>
+<tr class=b>
 <td>'id3 '</td>
 <td>ID3</td>
 <td class=c>-</td>
 <td>--&gt; <a href='ID3.html'>ID3 Tags</a></td></tr>
-<tr class=b>
+<tr>
 <td>'inst'</td>
 <td>Instrument</td>
 <td class=c>-</td>
 <td>--&gt; <a href='RIFF.html#Instrument'>RIFF Instrument Tags</a></td></tr>
-<tr>
+<tr class=b>
 <td>'labl'</td>
 <td>CuePointLabel</td>
 <td class=c>no</td>
 <td>&nbsp;</td></tr>
-<tr class=b>
+<tr>
 <td>'list'</td>
 <td>ListType</td>
 <td class=c>no</td>
 <td>&nbsp;</td></tr>
-<tr>
+<tr class=b>
 <td>'ltxt'</td>
 <td>LabeledText</td>
 <td class=c>no</td>
 <td><span class=s><span class=n>(CuePointID Length Purpose Country Language Dialect Codepage Text)</span></span></td></tr>
-<tr class=b>
+<tr>
 <td>'note'</td>
 <td>CuePointNote</td>
 <td class=c>no</td>
 <td>&nbsp;</td></tr>
-<tr>
+<tr class=b>
 <td>'olym'</td>
 <td>Olym</td>
 <td class=c>-</td>
 <td>--&gt; <a href='Olympus.html#WAV'>Olympus WAV Tags</a></td></tr>
-<tr class=b>
+<tr>
 <td>'plst'</td>
 <td>Playlist</td>
 <td class=c>no</td>
 <td>&nbsp;</td></tr>
-<tr>
+<tr class=b>
 <td>'smpl'</td>
 <td>Sampler</td>
 <td class=c>-</td>
 <td>--&gt; <a href='RIFF.html#Sampler'>RIFF Sampler Tags</a></td></tr>
-<tr class=b>
+<tr>
 <td>'tx_USER'</td>
 <td>UserText</td>
 <td class=c>-</td>
 <td>--&gt; <a href='RIFF.html#UserText'>RIFF UserText Tags</a></td></tr>
-<tr>
+<tr class=b>
 <td>'tx_Unknown'</td>
 <td>Text</td>
 <td class=c>no</td>
@@ -1342,7 +1368,8 @@ cameras.  The first 4 characters of the data are used as the Tag ID below.</p>
 <td class=r title='1 = 0x1'>1</td>
 <td>MaxDataRate</td>
 <td class=c>no</td>
-<td>&nbsp;</td></tr>
+<td><span class=s><span class=n>(converted using SI byte prefixes unles the API ByteUnit option is set to
+&quot;Binary&quot;)</span></span></td></tr>
 <tr>
 <td class=r title='4 = 0x4'>4</td>
 <td>FrameCount</td>
@@ -1422,6 +1449,13 @@ container specification.</p>
 <td>ImageHeight</td>
 <td class=c>no</td>
 <td>&nbsp;</td></tr>
+<tr>
+<td class=r title='4 = 0x4'>4</td>
+<td>AlphaIsUsed</td>
+<td class=c>no</td>
+<td><span class=s>[val &gt;&gt; 4 &amp; 0x1]
+  <br>0 = No
+  <br>1 = Yes</span></td></tr>
 </table></td></tr></table></blockquote>
 
 <h2><a name='VP8X'>RIFF VP8X Tags</a></h2>
@@ -1737,7 +1771,7 @@ Extracted only if the ExtractEmbedded option is used.</p>
 
 <hr>
 (This document generated automatically by Image::ExifTool::BuildTagLookup)
-<br><i>Last revised Oct 19, 2022</i>
+<br><i>Last revised Jun 27, 2025</i>
 <p class=lf><a href='index.html'>&lt;-- ExifTool Tag Names</a></p>
 </body>
 </html>
